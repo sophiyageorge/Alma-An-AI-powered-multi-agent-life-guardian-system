@@ -1,7 +1,7 @@
 import asyncio
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
-from app.models.exercise import ExerciseEntry
+from app.models.health import HealthMetrics
 from app.agents.health.rules import detect_anomaly
 from app.orchestrator.state import OrchestratorState
 from app.agents.health.utils import setup_logger
@@ -18,14 +18,24 @@ async def start_db_fallback_listener(state: OrchestratorState, manager:Connectio
     while True:
         try:
             db: Session = SessionLocal()
+            
+            # Get all health metric entries ordered by id
+            entries = db.query(HealthMetrics).order_by(HealthMetrics.id.asc()).all()
 
-              # Get all entries ordered by id
-            entries = db.query(ExerciseEntry).order_by(ExerciseEntry.id.asc()).all()
             db.close()
 
             if not entries:
-                logger.warning("No DB entries found to replay.")
+                logger.warning("No health metric entries found to replay.")
                 return
+
+              # Get all entries ordered by id
+            # entries = db.query(ExerciseEntry).order_by(ExerciseEntry.id.asc()).all()
+            # db.close()
+
+            # if not entries:
+            #     logger.warning("No DB entries found to replay.")
+            #     return
+            
             
 
             for entry in entries:
@@ -39,7 +49,7 @@ async def start_db_fallback_listener(state: OrchestratorState, manager:Connectio
                     "bp_diastolic": entry.bp_diastolic,
                     "steps": entry.steps,
                     "workout_duration_minutes": entry.workout_duration_minutes,
-                    "timestamp": str(entry.date_created)
+                    "timestamp": str(entry.timestamp)
                 }
 
                 processed = detect_anomaly(data)
@@ -53,7 +63,7 @@ async def start_db_fallback_listener(state: OrchestratorState, manager:Connectio
                 state["health_data"] = processed
                 state["anomaly_detected"] = processed.get("alert_level") != "normal"
                 state["emergency_level"] = processed.get("alert_level")
-                print("state updated",state["health_data"])
+                # print("state updated",state["health_data"])
                 # Small delay to simulate streaming
                 await asyncio.sleep(1)  # 1 second per entry (adjust as needed)
 

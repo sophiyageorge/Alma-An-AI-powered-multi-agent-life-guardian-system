@@ -39,13 +39,14 @@ def build_graph():
         }
     )
 
+    
     # Dummy node to branch parallel
-    graph.add_node("parallel_start", lambda state: state)
+    graph.add_node("parallel_start", lambda state: {})
 
     # Parallel edges
     graph.add_edge("parallel_start", "nutrition")
-    # graph.add_edge("parallel_start", "exercise")
-    # graph.add_edge("parallel_start", "mental")
+    graph.add_edge("parallel_start", "exercise")
+    graph.add_edge("parallel_start", "mental")
     
     graph.add_edge("nutrition", "approval_check")
     graph.add_conditional_edges(
@@ -59,8 +60,8 @@ def build_graph():
 
      # End points
     graph.add_edge("grocery", END)
-    # graph.add_edge("mental", END)
-    # graph.add_edge("exercise", END)
+    graph.add_edge("mental", END)
+    graph.add_edge("exercise", END)
 
 
     return graph.compile()

@@ -19,27 +19,31 @@ def detect_anomaly(health_point: dict) -> dict:
     # bp_dia = health_point["bp_diastolic"]
 
     # Heart Rate
-    if hr < 60 or hr > 120:
-        alert_level = "critical"
-        anomalies.append("heart_rate")
-    elif hr > 100:
-        alert_level = "warning"
-        anomalies.append("heart_rate")
+    # Heart Rate
+    if hr is not None:
+        if hr < 60 or hr > 120:
+            alert_level = "critical"
+            anomalies.append("heart_rate")
+        elif hr > 100:
+            alert_level = "warning"
+            anomalies.append("heart_rate")
 
     # SpO2
-    if spo2 < 90:
-        alert_level = "critical"
-        anomalies.append("spo2")
-    elif spo2 < 95:
+    if spo2 is not None:
+        if spo2 < 90:
+            alert_level = "critical"
+            anomalies.append("spo2")
+    elif spo2 is not None and spo2 < 95:
         alert_level = "warning"
         anomalies.append("spo2")
 
     # Blood Pressure
-    if bp_sys > 160 or bp_dia > 100:
-        alert_level = "critical"
-        anomalies.append("blood_pressure")
-    elif bp_sys > 140 or bp_dia > 90:
-        alert_level = "warning"
+    if bp_sys is not None and bp_dia is not None:
+        if bp_sys > 160 or bp_dia > 100:
+            alert_level = "critical"
+            anomalies.append("blood_pressure")
+        elif bp_sys > 140 or bp_dia > 90:
+            alert_level = "warning"
         anomalies.append("blood_pressure")
 
     health_point["alert_level"] = alert_level

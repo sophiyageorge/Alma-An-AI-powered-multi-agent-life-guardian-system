@@ -51,10 +51,14 @@ const AuthModel = ({ isOpen, onClose, setIsAuthenticated }) => {
         }
 
       if (response.ok) {
+        if (mode === "signin") {
         localStorage.setItem("token", data.access_token);
         setIsAuthenticated(true);
         onClose();
         alert("Authentication successful!");
+      } else {
+        alert("Registration successful! Please sign in.");
+        setMode("signin");}
         
       } else {
         alert(data.detail || "Authentication failed");

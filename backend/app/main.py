@@ -12,6 +12,12 @@ from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
 from app.orchestrator.state import OrchestratorState
 import asyncio
+from app.routers import user_profile
+from app.routers import exercise
+from app.core.logging_config import setup_logger
+from app.database import get_db
+
+
 
 
 load_dotenv()
@@ -80,3 +86,5 @@ app.include_router(router, prefix="/api")
 app.include_router(health.router, prefix="/health", tags=["Health"])
 app.include_router(realtime_router, prefix="/realtime") 
 app.include_router(stt_router)
+app.include_router(user_profile.router)
+app.include_router(exercise.router, prefix="/exercise", tags=["Exercise"])

@@ -1,81 +1,32 @@
 # app/routers/nutrition.py
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from app.dependencies import get_current_user,get_db
+from app.dependencies import get_current_user
 from app.schemas.meal import MealPlanResponse
-from app.models.meal import WeeklyMealPlan
-from app.orchestrator.state import OrchestratorState
-from app.orchestrator.graph import build_graph 
+from app.orchestrator.store import orchestrator_store
 
 router = APIRouter()
-graph = build_graph()
 
 @router.get("/meals", response_model=MealPlanResponse)
-def get_my_meals(current_user = Depends(get_current_user),db : Session = Depends(get_db)):
-    
+def get_my_meals(current_user=Depends(get_current_user)):
 
     """
-    Generate weekly meal plan via LangGraph, store in DB, and return meal plan.
+    Return the weekly meal plan stored in the orchestrator state.
     """
-    # 1️⃣ Build initial state
-    state: OrchestratorState = {
-        "user_id": current_user.user_id,
 
-        # Inputs
-        "user_profile": {
-            "user_id" : current_user.user_id,
-            "calories": 1800,
-            "diet": "vegetarian",
-            "goal": "weight loss",
-            "region": "Kerala",
-            "restrictions": "no dairy",
-            "meal_type": "home food",
-            "week": "2026-W05"
-        },
-        # "health_data": None,
-        # "journal_text": None,
-        # "user_request": "Generate weekly meal plan",
+    # 1️⃣ Fetch the orchestrator state for the user
+    state = orchestrator_store.get(current_user.user_id)
+    if not state:
+        return {"message": "Orchestrator state not initialized"}
 
-        # # Agent outputs
-        # "nutrition_plan": None,
-        # "exercise_plan": None,
-        # "grocery_list": None,
-        # "mental_insights": None,
+    nutrition_plan = state.get("nutrition_plan")
+    if not nutrition_plan:
+        return {"message": "Nutrition plan not available in state"}
 
-        # # System flags
-        # "anomaly_detected": False,
-        # "emergency_level": None,
-        # "compliance_passed": False,
-
-        # Final output
-        "response": None
-    }
-# commented for testing
-    # 2️⃣ Execute LangGraph
-    print("user id",current_user.user_id)
-    final_state = graph.invoke(state)
-
-    # Store meal plan in DB
-    meal_plan_text = final_state["nutrition_plan"]["meal_plan_text"]
-    week = final_state["nutrition_plan"]["week"]
-
-    db_entry = WeeklyMealPlan(
+    # 2️⃣ Build the response from state
+    return MealPlanResponse(
+        meal_plan_id=nutrition_plan.get("id"),  
         user_id=current_user.user_id,
-        meal_plan_text=meal_plan_text,
-        is_approved=False  # user must approve before grocery
+        week=nutrition_plan.get("created_date").strftime("%Y-W%W"),
+        meal_plan=nutrition_plan.get("meal_plan_text"),
+        approved=nutrition_plan.get("is_approved", False)
     )
-    db.add(db_entry)
-    db.commit()
-    db.refresh(db_entry)
-
-
-    # 3️⃣ Return agent response
-    return {
-        "meal_plan_id": db_entry.id,
-        "user_id": current_user.user_id,
-        "week": week,
-        "meal_plan": meal_plan_text,
-        "approved": db_entry.is_approved
-    }
-
-    

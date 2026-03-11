@@ -40,14 +40,13 @@ def build_orchestrator():
             "normal_flow": "parallel_start"
         }
     )
-
     # Dummy node to branch parallel
-    graph.add_node("parallel_start", lambda state: state)
+    graph.add_node("parallel_start", lambda state: {})
 
     # Parallel edges
     graph.add_edge("parallel_start", "nutrition")
     graph.add_edge("parallel_start", "exercise")
-    # graph.add_edge("parallel_start", "mental")
+    graph.add_edge("parallel_start", "mental")
 
     graph.add_edge("nutrition", "approval_check")
     
@@ -63,7 +62,7 @@ def build_orchestrator():
 
     # End of flow
     graph.add_edge("grocery", END)
-    # graph.add_edge("mental", END)
+    graph.add_edge("mental", END)
     graph.add_edge("exercise", END)
 
 
