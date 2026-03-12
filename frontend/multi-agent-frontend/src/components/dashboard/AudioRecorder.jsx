@@ -77,7 +77,7 @@ const AudioRecorder = ({ userId, onTranscription }) => {
         formData.append("file", audioBlob, "recording.mp4");
 
         try {
-          const response = await fetch("http://localhost:8000/stt/transcribe", {
+          const response = await fetch("http://16.170.245.94:8000/stt/transcribe", {
             method: "POST",
             body: formData,
             headers: getAuthHeadersform(),

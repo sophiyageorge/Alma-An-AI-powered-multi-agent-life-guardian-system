@@ -17,8 +17,8 @@ const AuthModel = ({ isOpen, onClose, setIsAuthenticated }) => {
 
     const endpoint =
       mode === "signin"
-        ? "http://localhost:8000/users/login"
-        : "http://localhost:8000/users/register";
+        ? "http://16.170.245.94:8000/users/login"
+        : "http://16.170.245.94:8000/users/register";
         
         const body =
   mode === "signin"
