@@ -22,7 +22,7 @@ class WeeklyMealPlanCreate(BaseModel):
     region: str
     restrictions: Optional[List[str]] = None
     goal: str
-    meal_plan_text: str
+    meal_plan_text: str 
 
 class WeeklyMealPlanUpdate(BaseModel):
     calories: Optional[int] = None

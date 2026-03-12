@@ -9,6 +9,15 @@ export const getAuthHeaders = () => {
   };
 };
 
+export const getAuthHeadersform = () => {
+  const token = localStorage.getItem("token");
+
+  return {
+    // "Content-Type": "application/json",
+    Authorization: token ? `Bearer ${token}` : "",
+  };
+};
+
 
 // uncomment this
 
@@ -72,35 +81,49 @@ export const approveMealPlan = async (mealPlanId) => {
     throw error;
   }
 };
-// export const approveMealPlan = async (mealPlanId) => {
-//   const response = await fetch(
-//     `http://localhost:8000/meal-approval/meal-plan/${mealPlanId}/approve`,
-//     {
-//       method: "POST",
-//       headers: {
-//         "Content-Type": "application/json",
-//       },
-//     }
-//   );
+export const getRecommendations = async () => {
+  const response = await fetch(`${BASE_URL}/exercise/recommendation`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
 
-//   if (!response.ok) {
-//     throw new Error("Failed to approve meal plan");
-//   }
+  if (!response.ok) {
+    throw new Error("Failed to fetch meal plan");
+  }
 
-//   return response.json();
-// };
+  if (response.status === 401) {
+    localStorage.removeItem("token");
+    window.location.reload();  // forces login again
+  }
 
-// export const updateMealPlan = async (payload) => {
-//   const response = await fetch("http://localhost:8000/update-meal", {
-//     method: "POST",
-//     headers: {
-//       "Content-Type": "application/json",
-//     },
-//     body: JSON.stringify(payload),
-//   });
+  if (!response.ok) {
+    throw new Error("Failed to fetch meal plan");
+  }
 
-//   return response.json();
-// };
+  return response.json();
+};
+
+export const getJournal = async () => {
+  const response = await fetch(`${BASE_URL}/stt/journal/today`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch meal plan");
+  }
+
+  if (response.status === 401) {
+    localStorage.removeItem("token");
+    window.location.reload();  // forces login again
+  }
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch meal plan");
+  }
+
+  return response.json();
+};
 
 export const updateMealPlan = async (user_id, payload) => {
   try {

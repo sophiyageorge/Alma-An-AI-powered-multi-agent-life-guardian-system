@@ -1,5 +1,6 @@
 """
 Exercise Agent Implementation with DB check.
+Generates personalized exercise recommendations based on daily health metrics.
 """
 
 from datetime import datetime
@@ -10,11 +11,8 @@ from app.database import get_db
 from app.core.logging_config import setup_logger
 from app.core.exceptions import ExerciseAgentError
 from app.models.health import HealthMetrics
-import threading
-# from app.orchestrator.store import orchestrator_store
 
 logger = setup_logger(__name__)
-lock = threading.Lock()
 
 
 def exercise_agent(state: OrchestratorState) -> OrchestratorState:
@@ -29,6 +27,7 @@ def exercise_agent(state: OrchestratorState) -> OrchestratorState:
         OrchestratorState: Updated state with exercise recommendation.
     """
     try:
+        logger.info("Exercise Agent started")
         user_profile = state.get("user_profile", {})
         user_id = user_profile.get("user_id")
         if not user_id:
@@ -37,9 +36,9 @@ def exercise_agent(state: OrchestratorState) -> OrchestratorState:
         db = next(get_db())
 
         # -----------------------------
-        # 1️⃣ Get latest health metrics from DB
+        # 1️⃣ Fetch latest health metrics
         # -----------------------------
-        latest_health = (
+        latest_health: HealthMetrics = (
             db.query(HealthMetrics)
             .filter(HealthMetrics.user_id == 1)
             .order_by(HealthMetrics.timestamp.desc())
@@ -47,7 +46,7 @@ def exercise_agent(state: OrchestratorState) -> OrchestratorState:
         )
 
         if not latest_health:
-            logger.warning(f"No health metrics found in DB for user_id={user_id}")
+            logger.warning(f"No health metrics found for user_id={user_id}")
             return state  # Cannot generate recommendation
 
         health_metrics = {
@@ -58,17 +57,15 @@ def exercise_agent(state: OrchestratorState) -> OrchestratorState:
             "steps": latest_health.steps,
             "workout_duration_minutes": latest_health.workout_duration_minutes,
         }
-
-        logger.info(f"Latest health metrics: {health_metrics}")
+        logger.info(f"Latest health metrics fetched: {health_metrics}")
 
         # -----------------------------
-        # 2️⃣ Check for today's exercise entry
+        # 2️⃣ Check if today's exercise entry exists
         # -----------------------------
-        today_entry = get_today_exercise_entry(db, user_id, metrics=health_metrics)
+        today_entry = get_today_exercise_entry(db, user_id)
 
         if today_entry:
-            logger.info(f"Found existing exercise entry for user_id={user_id} today")
-            # Use DB entry as response
+            logger.info(f"Using existing exercise entry for user_id={user_id}")
             entry_for_response = today_entry
             recommendation = {
                 "intensity": today_entry.intensity,
@@ -77,83 +74,174 @@ def exercise_agent(state: OrchestratorState) -> OrchestratorState:
                 "recovery_advice": today_entry.recovery_advice,
             }
             llm_response = today_entry.llm_response
-
+            entry_id = getattr(today_entry, "id", 0)
+            date_created = getattr(today_entry, "date_created", datetime.utcnow())
         else:
-            # -----------------------------
-            # 3️⃣ Generate new recommendation via LLM
-            # -----------------------------
-            logger.info(f"No entry for today, generating new recommendation for user_id={user_id}")
-            entry_for_response = recommend_exercise(user_id=user_id, metrics=health_metrics)
-            recommendation = {
-                "intensity": entry_for_response.get("intensity"),
-                "plan": entry_for_response.get("plan", []),
-                "warnings": entry_for_response.get("warnings", []),
-                "recovery_advice": entry_for_response.get("recovery_advice"),
+            logger.info(f"No entry for today. Generating new recommendation for user_id={user_id}")
+            llm_result = recommend_exercise(user_id=user_id, metrics=health_metrics)
+
+            # Create a consistent dict for orchestrator state
+            entry_for_response = {
+                "id": 0,  # not saved in DB yet
+                "user_id": user_id,
+                "intensity": llm_result.get("intensity"),
+                "plan": llm_result.get("plan", []),
+                "warnings": llm_result.get("warnings", []),
+                "recovery_advice": llm_result.get("recovery_advice"),
+                "llm_response": llm_result.get("llm_response", ""),
+                "date_created": datetime.utcnow(),
             }
-            llm_response = entry_for_response.get("llm_response", "")
+
+            recommendation = {
+                "intensity": entry_for_response["intensity"],
+                "plan": entry_for_response["plan"],
+                "warnings": entry_for_response["warnings"],
+                "recovery_advice": entry_for_response["recovery_advice"],
+            }
+            llm_response = entry_for_response["llm_response"]
+            entry_id = entry_for_response["id"]
+            date_created = entry_for_response["date_created"]
 
         # -----------------------------
-        # 4️⃣ Update orchestrator state
+        # 3️⃣ Update orchestrator state
         # -----------------------------
-        state["exercise_plan"] = {
-            "heart_rate": health_metrics.get("heart_rate", 0),
-            "steps": health_metrics.get("steps"),
-            "intensity": recommendation.get("intensity"),
-            "plan": recommendation.get("plan", []),
-            "warnings": recommendation.get("warnings", []),
-            "recovery_advice": recommendation.get("recovery_advice"),
-        }
+        # state["exercise_plan"] = {
+        #     "id": entry_id,
+        #     "user_id": user_id,
+        #     "heart_rate": health_metrics.get("heart_rate"),
+        #     "spo2": health_metrics.get("spo2"),
+        #     "bp_systolic": health_metrics.get("bp_systolic"),
+        #     "bp_diastolic": health_metrics.get("bp_diastolic"),
+        #     "steps": health_metrics.get("steps"),
+        #     "workout_duration_minutes": health_metrics.get("workout_duration_minutes"),
+        #     "llm_response": llm_response,
+        #     "intensity": recommendation.get("intensity"),
+        #     "plan": recommendation.get("plan", []),
+        #     "warnings": recommendation.get("warnings", []),
+        #     "recovery_advice": recommendation.get("recovery_advice"),
+        #     "date_created": date_created,
+        # }
 
-        # -----------------------------
-        # 5️⃣ Prepare API response
-        # -----------------------------
-        response = {
-            "id": getattr(entry_for_response, "id", 0),
-            "user_id": getattr(entry_for_response, "user_id", user_id),
-            "heart_rate": getattr(entry_for_response, "heart_rate", health_metrics.get("heart_rate")),
-            "spo2": getattr(entry_for_response, "spo2", health_metrics.get("spo2")),
-            "bp_systolic": getattr(entry_for_response, "bp_systolic", health_metrics.get("bp_systolic")),
-            "bp_diastolic": getattr(entry_for_response, "bp_diastolic", health_metrics.get("bp_diastolic")),
-            "steps": getattr(entry_for_response, "steps", health_metrics.get("steps")),
-            "workout_duration_minutes": getattr(entry_for_response, "workout_duration_minutes", health_metrics.get("workout_duration_minutes")),
-            "llm_response": llm_response,
-            "intensity": recommendation.get("intensity"),
-            "plan": recommendation.get("plan", []),
-            "warnings": recommendation.get("warnings", []),
-            "recovery_advice": recommendation.get("recovery_advice"),
-            "date_created": getattr(entry_for_response, "date_created", datetime.utcnow()),
-        }
-
-        # Store response in orchestrator state
-        state["exercise_plan"] = response
-
-        logger.info("Exercise Agent completed successfully")
-        logger.info(f"Exercise recommendation response: {state["exercise_plan"]}")
-       
-
-        
-        # try:
-        #     # with lock:
-        #     # state = orchestrator_store.get(user_id, {})
-        #         state["exercise_response"] = response
-        #         # orchestrator_store[user_id] = state
-
-        #         # if user_id not in orchestrator_store:
-        #         #         orchestrator_store[user_id] = {}
-
-
-        #         # orchestrator_store[user_profile.get("user_id")]["exercise_response"] = state["exercise_response"]
-
-
-
-        #         logger.info(f"Updated exercise_response for user_id {user_id}: {response}")
-
-        # except Exception as e:
-        #     logger.info("Exercise Agent fai")
-            # logger.error(f"Error updating orchestrator_store for user_id {user_id}: {e}", exc_info=True)
-
+        logger.info(f"Exercise Agent completed for user_id={user_id}")
         return state
 
     except Exception as e:
-        logger.exception("Error occurred in Exercise Agent")
+        logger.exception(
+            f"Exercise Agent failed for user_id={state.get('user_profile', {}).get('user_id')}"
+        )
         raise ExerciseAgentError(str(e)) from e
+# """
+# Exercise Agent Implementation with DB check.
+# Generates personalized exercise recommendations based on daily health metrics.
+# """
+
+# from datetime import datetime
+# from app.orchestrator.state import OrchestratorState
+# from app.agents.exercise.recommendation import recommend_exercise
+# from app.crud.exercise import get_today_exercise_entry
+# from app.database import get_db
+# from app.core.logging_config import setup_logger
+# from app.core.exceptions import ExerciseAgentError
+# from app.models.health import HealthMetrics
+
+# logger = setup_logger(__name__)
+
+
+# def exercise_agent(state: OrchestratorState) -> OrchestratorState:
+#     """
+#     Generates exercise recommendation based on daily health metrics.
+#     Checks DB first for today's entry; if none, generates a new one via LLM.
+
+#     Args:
+#         state (OrchestratorState): Current orchestrator state.
+
+#     Returns:
+#         OrchestratorState: Updated state with exercise recommendation.
+#     """
+#     try:
+#         user_profile = state.get("user_profile", {})
+#         user_id = user_profile.get("user_id")
+#         if not user_id:
+#             raise ValueError("Missing user_id in user_profile")
+
+#         db = next(get_db())
+
+#         # -----------------------------
+#         # 1️⃣ Fetch latest health metrics
+#         # -----------------------------
+#         latest_health: HealthMetrics = (
+#             db.query(HealthMetrics)
+#             .filter(HealthMetrics.user_id == user_id)
+#             .order_by(HealthMetrics.timestamp.desc())
+#             .first()
+#         )
+
+#         if not latest_health:
+#             logger.warning(f"No health metrics found for user_id={user_id}")
+#             return state  # Cannot generate recommendation
+
+#         health_metrics = {
+#             "heart_rate": latest_health.heart_rate,
+#             "spo2": latest_health.spo2,
+#             "bp_systolic": latest_health.bp_systolic,
+#             "bp_diastolic": latest_health.bp_diastolic,
+#             "steps": latest_health.steps,
+#             "workout_duration_minutes": latest_health.workout_duration_minutes,
+#         }
+#         logger.info(f"Latest health metrics fetched")
+
+#         # -----------------------------
+#         # 2️⃣ Check if today's exercise entry exists
+#         # -----------------------------
+#         today_entry = get_today_exercise_entry(db, user_id) 
+
+#         if today_entry:
+#             logger.info(f"Using existing exercise entry for user_id={user_id}")
+#             entry_for_response = today_entry
+#             recommendation = {
+#                 "intensity": today_entry.intensity,
+#                 "plan": today_entry.plan or [],
+#                 "warnings": today_entry.warnings or [],
+#                 "recovery_advice": today_entry.recovery_advice,
+#             }
+#             llm_response = today_entry.llm_response
+#         else:
+#             # -----------------------------
+#             # 3️⃣ Generate new recommendation via LLM
+#             # -----------------------------
+#             logger.info(f"No entry for today. Generating new recommendation for user_id={user_id}")
+#             entry_for_response = recommend_exercise(user_id=user_id, metrics=health_metrics)
+#             recommendation = {
+#                 "intensity": entry_for_response.get("intensity"),
+#                 "plan": entry_for_response.get("plan", []),
+#                 "warnings": entry_for_response.get("warnings", []),
+#                 "recovery_advice": entry_for_response.get("recovery_advice"),
+#             }
+#             llm_response = entry_for_response.get("llm_response", "")
+
+#         # -----------------------------
+#         # 4️⃣ Update orchestrator state
+#         # -----------------------------
+#         # state["exercise_plan"] = {
+#         #     "id": getattr(entry_for_response, "id", 0),
+#         #     "user_id": getattr(entry_for_response, "user_id", user_id),
+#         #     "heart_rate": health_metrics.get("heart_rate"),
+#         #     "spo2": health_metrics.get("spo2"),
+#         #     "bp_systolic": health_metrics.get("bp_systolic"),
+#         #     "bp_diastolic": health_metrics.get("bp_diastolic"),
+#         #     "steps": health_metrics.get("steps"),
+#         #     "workout_duration_minutes": health_metrics.get("workout_duration_minutes"),
+#         #     "llm_response": llm_response,
+#         #     "intensity": recommendation.get("intensity"),
+#         #     "plan": recommendation.get("plan", []),
+#         #     "warnings": recommendation.get("warnings", []),
+#         #     "recovery_advice": recommendation.get("recovery_advice"),
+#         #     "date_created": getattr(entry_for_response, "date_created", datetime.utcnow()),
+#         # }
+
+#         logger.info(f"Exercise Agent completed for user_id={user_id}")
+#         return state
+
+#     except Exception as e:
+#         logger.exception(f"Exercise Agent failed for user_id={state.get('user_profile', {}).get('user_id')}")
+#         raise ExerciseAgentError(str(e)) from e

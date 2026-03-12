@@ -296,7 +296,7 @@ export default function LandingPage() {
         {/* NAV */}
         <nav className="nav">
           <div className="nlogo"><div className="nico">✦</div><span>GUAR<span>DIAN</span></span></div>
-          <div className="nlinks">{["Agents","Wellness","Pricing","About"].map(l=><span key={l} className="nl">{l}</span>)}</div>
+          {/* <div className="nlinks">{["Agents","Wellness","Pricing","About"].map(l=><span key={l} className="nl">{l}</span>)}</div> */}
           <button className="nbtn" onClick={() => setIsAuthOpen(true)} >Get Started</button>
           
          
@@ -312,7 +312,7 @@ export default function LandingPage() {
             <div>
               <div className="eyebrow"><div className="ldot"/>AI Guardian System · Active</div>
               <h1 className="htitle">
-                <span className="w">Welcome back, Alex</span>
+                <span className="w">Alma</span>
                 <span className="g">Your Guardian is On.</span>
               </h1>
               <p className="hdesc">An always-on AI companion monitoring your vitals, planning your nutrition, optimizing workouts, and nurturing your mental wellbeing — every second of every day.</p>

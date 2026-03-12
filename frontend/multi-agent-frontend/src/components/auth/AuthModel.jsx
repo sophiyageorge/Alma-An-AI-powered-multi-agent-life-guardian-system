@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const AuthModel = ({ isOpen, onClose, setIsAuthenticated }) => {
   const [name, setName] = useState("");
@@ -7,6 +8,7 @@ const AuthModel = ({ isOpen, onClose, setIsAuthenticated }) => {
   const [gender, setGender] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState("signin");
+  const navigate = useNavigate()
 
   if (!isOpen) return null;
 
@@ -56,6 +58,8 @@ const AuthModel = ({ isOpen, onClose, setIsAuthenticated }) => {
         setIsAuthenticated(true);
         onClose();
         alert("Authentication successful!");
+        navigate("/home");
+
       } else {
         alert("Registration successful! Please sign in.");
         setMode("signin");}
