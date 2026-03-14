@@ -1,18 +1,26 @@
-version: '3.9'
+version: "3.9"
 
 services:
   backend:
     build: ./backend
     container_name: backend
-    restart: always
     ports:
       - "8000:8000"
+    networks:
+      - app-network
 
   frontend:
     build: ./frontend/multi-agent-frontend
-    container_name: frontend
-    restart: always
+    container_name: react-frontend-dev
     ports:
-      - "80:80"
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://backend:8000  # used in React for API calls
     depends_on:
       - backend
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

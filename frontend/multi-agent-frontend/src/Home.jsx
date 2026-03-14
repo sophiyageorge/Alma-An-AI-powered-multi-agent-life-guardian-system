@@ -324,10 +324,10 @@ function App() {
 
           {/* Heart Rate card */}
 
-          <HeartRateCard />
+          {/* <HeartRateCard /> */}
             {/* Blood Pressure Card */}
 
-          <BloodPressureCard />
+          {/* <BloodPressureCard /> */}
         
         
     
@@ -341,11 +341,11 @@ function App() {
         >
           {/* Heart Rate Chart */}
 
-           <HeartRateChart />
+           {/* <HeartRateChart /> */}
 
           {/* Blood Pressure Chart */}
 
-         <BloodPressureChart />
+         {/* <BloodPressureChart /> */}
        
         </div>
 

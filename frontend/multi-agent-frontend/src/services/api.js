@@ -1,5 +1,4 @@
-// const BASE_URL = "http://localhost:8000"; // your FastAPI backend
-const BASE_URL = "http://16.170.245.94:8000";
+const BASE_URL = "http://backend-service:8000"; // your FastAPI backend
 
 export const getAuthHeaders = () => {
   const token = localStorage.getItem("token");
