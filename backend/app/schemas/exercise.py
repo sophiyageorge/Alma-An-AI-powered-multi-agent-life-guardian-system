@@ -28,8 +28,7 @@ class ExerciseEntryResponse(BaseModel):
     spo2: Optional[int]
     bp_systolic: Optional[int]
     bp_diastolic: Optional[int]
-    steps: Optional[int]
-    workout_duration_minutes: Optional[float]
+    
 
     llm_response: Optional[str]
     intensity: Optional[str]

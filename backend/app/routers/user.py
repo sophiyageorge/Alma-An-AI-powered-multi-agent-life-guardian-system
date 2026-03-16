@@ -234,12 +234,12 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
 
            # 6️⃣ Save state in memory
     orchestrator_store[db_user.user_id] = final_state
-    orchestrator_store[db_user.user_id] = {
-    "health_metrics": None,
-    "nutrition_plan": None,
-    "exercise_plan": None,
-    "mental_health": None
-}
+#     orchestrator_store[db_user.user_id] = {
+#     "health_metrics": None,
+#     "nutrition_plan": None,
+#     "exercise_plan": None,
+#     "mental_health": None
+# }
     logger.info(f"Final orchestrator state for user_id {db_user.user_id}")
 
 

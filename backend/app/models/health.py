@@ -15,8 +15,9 @@ Example Metrics:
 - Workout duration
 """
 
-from sqlalchemy import Column, Integer, Float, DateTime
+from sqlalchemy import Column, Integer, Float, DateTime , ForeignKey
 from datetime import datetime
+
 
 from app.database import Base
 from app.core.logging_config import setup_logger
@@ -45,7 +46,8 @@ class HealthMetrics(Base):
     # User Reference
     # ---------------------------------------------------------
 
-    user_id = Column(Integer, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), index=True)
+
     """
     ID of the user who generated this health data.
     Indexed for faster querying of user history.
@@ -67,11 +69,7 @@ class HealthMetrics(Base):
     bp_diastolic = Column(Integer, nullable=True)
     """Diastolic blood pressure"""
 
-    steps = Column(Integer, nullable=True)
-    """Total steps recorded for the measurement period"""
-
-    workout_duration_minutes = Column(Float, nullable=True)
-    """Workout duration in minutes"""
+ 
 
     # ---------------------------------------------------------
     # Timestamp
@@ -118,33 +116,3 @@ class HealthMetrics(Base):
             f"HealthMetrics entry created | user_id={self.user_id} | "
             f"heart_rate={self.heart_rate} | spo2={self.spo2}"
         )
-# from sqlalchemy import Column, Integer, Float, Date, ForeignKey, TIMESTAMP, func, String, DateTime
-# from datetime import datetime
-# from app.database import Base   
-
-# # class HealthData(Base):
-# #     __tablename__ = "health_data"
-# #     health_id = Column(Integer, primary_key=True, index=True)
-# #     user_id = Column(Integer, ForeignKey("users.user_id"))
-# #     member_id = Column(Integer, ForeignKey("family_members.member_id"), nullable=True)
-# #     date = Column(Date, nullable=False)
-# #     bp_systolic = Column(Integer)
-# #     bp_diastolic = Column(Integer)
-# #     weight = Column(Float)
-# #     steps = Column(Integer)
-# #     sleep_hours = Column(Float)
-# #     activity_type = Column(String(100))
-# #     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
-
-# class HealthMetrics(Base):
-#     __tablename__ = "health_metrics"
-
-#     id = Column(Integer, primary_key=True, autoincrement=True)
-#     user_id = Column(Integer, nullable=False)
-#     heart_rate = Column(Integer)
-#     spo2 = Column(Integer)
-#     bp_systolic = Column(Integer)
-#     bp_diastolic = Column(Integer)
-#     steps = Column(Integer)
-#     workout_duration_minutes = Column(Float)
-#     timestamp = Column(DateTime, default=datetime.utcnow)

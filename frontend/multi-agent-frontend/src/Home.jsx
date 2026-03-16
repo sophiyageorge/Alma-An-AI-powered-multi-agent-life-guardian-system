@@ -47,6 +47,7 @@ import BloodPressureChart from "./components/charts/BloodPressureChart";
 import CurrentMeal from "./components/dashboard/CurrentMeal";
 import Journal from "./components/dashboard/Journal";
 import ExercisePlan from "./components/dashboard/ExercisePlan";
+import HealthDailyUpdateForm from "./components/dashboard/HealthDailyUpdateForm";
 // import MealPlanActions from "./UpdateMealPlan";
 
 
@@ -323,11 +324,14 @@ function App() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6">
 
           {/* Heart Rate card */}
+               <HealthDailyUpdateForm /> 
+           <HeartRateCard /> 
+           {/* <HealthDailyUpdateForm /> */}
+           
 
-          {/* <HeartRateCard /> */}
             {/* Blood Pressure Card */}
 
-          {/* <BloodPressureCard /> */}
+           <BloodPressureCard /> 
         
         
     

@@ -1,122 +1,252 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-import asyncio
-import threading
-from typing import Dict, Any
+"""
+Health Metrics API Routes
+-------------------------
 
-from app.orchestrator.state import OrchestratorState
-from app.agents.health.kafka_consumer import start_health_kafka_listener
+Provides endpoints for managing user health metrics.
+These endpoints are used by wearable integrations,
+manual user input, and AI health agents.
+"""
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from typing import List
+from sqlalchemy import func
+from datetime import datetime, timedelta
+
+from app.database import get_db
+from app.schemas.health import (
+    HealthMetricsCreate,
+    HealthMetricsUpdate,
+    HealthMetricsResponse
+)
+
+from app.crud.health import (
+    create_health_metric,
+    get_health_metric_by_id,
+    get_today_health_metrics,
+    get_user_health_history,
+    update_health_metric,
+    delete_health_metric
+)
+
+from app.models.health import HealthMetrics
+
+from app.core.logging_config import setup_logger
+
+logger = setup_logger(__name__)
+
+router = APIRouter(
+    prefix="/health-metrics",
+    tags=["Health Metrics"]
+)
 
 
-# Create router instance
-router = APIRouter()
+# ---------------------------------------------------------
+# Create Health Metric
+# ---------------------------------------------------------
 
-# Shared orchestrator state
-state = OrchestratorState()
-state["health_data"] = {}
-
-# Lock to prevent race conditions (important for threading)
-state_lock = threading.Lock()
-
-
-# -------------------------------
-# Start Kafka Listener Function
-# -------------------------------
-def start_kafka_background_listener():
+@router.post(
+    "/",
+    response_model=HealthMetricsResponse,
+    summary="Create health metrics entry"
+)
+def create_metric(
+    data: HealthMetricsCreate,
+    db: Session = Depends(get_db)
+):
     """
-    Starts Kafka listener in a background thread.
-    This will continuously consume health data
-    and update shared orchestrator state.
+    Insert a new health metrics entry.
     """
-    print("Starting Kafka Listener Thread...")
-    listener_thread = threading.Thread(
-        target=start_health_kafka_listener,
-        args=(state,),
-        daemon=True
-    )
-    listener_thread.start()
+
+    metric = create_health_metric(db, data)
+
+    return metric
 
 
-# -------------------------------
-# REST Endpoint (Optional - Debug)
-# -------------------------------
-@router.get("/latest")
-def get_latest_health_data() -> Dict[str, Any]:
+# ---------------------------------------------------------
+# Get Health Metric By ID
+# ---------------------------------------------------------
+
+@router.get(
+    "/{metric_id}",
+    response_model=HealthMetricsResponse,
+    summary="Get health metric by ID"
+)
+def get_metric(
+    metric_id: int,
+    db: Session = Depends(get_db)
+):
     """
-    Returns the latest health data (for debugging/testing).
+    Retrieve a single health metric entry.
     """
-    with state_lock:
-        return state.get("health_data", {})
+
+    metric = get_health_metric_by_id(db, metric_id)
+
+    if not metric:
+        raise HTTPException(
+            status_code=404,
+            detail="Health metric not found"
+        )
+
+    return metric
 
 
-# -------------------------------
-# WebSocket Endpoint
-# -------------------------------
-@router.websocket("/ws/health")
-async def websocket_endpoint(ws: WebSocket):
+# ---------------------------------------------------------
+# Get Today's Health Metrics
+# ---------------------------------------------------------
+
+@router.get(
+    "/user/{user_id}/today",
+    response_model=HealthMetricsResponse,
+    summary="Get today's health metrics"
+)
+def get_today_metrics(
+    user_id: int,
+    db: Session = Depends(get_db)
+):
     """
-    WebSocket endpoint to stream health data
-    to frontend in real-time.
+    Retrieve today's health metrics for a user.
+    Used by the Health Agent.
     """
-    await ws.accept()
 
-    try:
-        while True:
-            with state_lock:
-                health_data = state.get("health_data")
+    metrics = get_today_health_metrics(db, user_id)
 
-            if health_data:
-                await ws.send_json(health_data)
-
-            await asyncio.sleep(1)
-
-    except WebSocketDisconnect:
-        print("Client disconnected")
-
-    except Exception as e:
-        print(f"WebSocket Error: {e}")
-        await ws.close()
-
-# from fastapi import FastAPI, WebSocket
-# import asyncio
-# import threading
-
-# from app.orchestrator.state import OrchestratorState
-# from app.agents.health.kafka_listener import start_health_kafka_listener
+    return metrics
 
 
-# app = FastAPI()
+# ---------------------------------------------------------
+# Get User Health History
+# ---------------------------------------------------------
 
-# # Shared orchestrator state
-# state = OrchestratorState()
-# state["health_data"] = {}
+@router.get(
+    "/user/{user_id}/history",
+    response_model=List[HealthMetricsResponse],
+    summary="Get health history"
+)
+def get_health_history(
+    user_id: int,
+    limit: int = 50,
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieve historical health metrics for a user.
+    """
+
+    history = get_user_health_history(db, user_id, limit)
+
+    return history
 
 
-# # ✅ Start Kafka listener in background when API starts
-# @app.on_event("startup")
-# def startup_event():
-#     listener_thread = threading.Thread(
-#         target=start_health_kafka_listener,
-#         args=(state,),
-#         daemon=True
-#     )
-#     listener_thread.start()
+# ---------------------------------------------------------
+# Update Health Metric
+# ---------------------------------------------------------
+
+@router.put(
+    "/{metric_id}",
+    response_model=HealthMetricsResponse,
+    summary="Update health metric"
+)
+def update_metric(
+    metric_id: int,
+    data: HealthMetricsUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    Update an existing health metric entry.
+    """
+
+    metric = update_health_metric(db, metric_id, data)
+
+    if not metric:
+        raise HTTPException(
+            status_code=404,
+            detail="Health metric not found"
+        )
+
+    return metric
 
 
-# @app.websocket("/ws/health")
-# async def websocket_endpoint(ws: WebSocket):
-#     """
-#     WebSocket endpoint to stream latest health data
-#     to frontend in real-time.
-#     """
-#     await ws.accept()
+# ---------------------------------------------------------
+# Delete Health Metric
+# ---------------------------------------------------------
 
-#     try:
-#         while True:
-#             # Send latest health data every second
-#             if state.get("health_data"):
-#                 await ws.send_json(state["health_data"])
+@router.delete(
+    "/{metric_id}",
+    summary="Delete health metric"
+)
+def delete_metric(
+    metric_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Delete a health metric entry.
+    """
 
-#             await asyncio.sleep(1)
+    success = delete_health_metric(db, metric_id)
 
-#     except Exception as e:
-#         await ws.close()
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail="Health metric not found"
+        )
+
+    return {"message": "Health metric deleted successfully"}
+
+
+#     from fastapi import APIRouter, Depends
+# from sqlalchemy.orm import Session
+# from app.database import get_db
+
+# from sqlalchemy import func
+
+# router = APIRouter()
+
+@router.get("/health/last-week")
+def get_last_week_health(user_id: int, db: Session = Depends(get_db)):
+    """
+    Returns health metrics for the last 7 days.
+    """
+    start_date = datetime.utcnow() - timedelta(days=7)
+
+    rows = db.query(HealthMetrics).filter(
+        HealthMetrics.user_id == user_id,
+        HealthMetrics.timestamp >= start_date
+    ).order_by(HealthMetrics.timestamp).all()
+
+    result = [
+        {
+            "timestamp": row.timestamp,
+            "heart_rate": row.heart_rate,
+            "spo2": row.spo2,
+            "bp_systolic": row.bp_systolic,
+            "bp_diastolic": row.bp_diastolic
+        }
+        for row in rows
+    ]
+
+    return result
+
+@router.get("/health/last-month")
+def get_last_month_health(user_id: int, db: Session = Depends(get_db)):
+    """
+    Returns health metrics for the last 30 days.
+    """
+    start_date = datetime.utcnow() - timedelta(days=30)
+
+    rows = db.query(HealthMetrics).filter(
+        HealthMetrics.user_id == user_id,
+        HealthMetrics.timestamp >= start_date
+    ).order_by(HealthMetrics.timestamp).all()
+
+    result = [
+        {
+            "timestamp": row.timestamp,
+            "heart_rate": row.heart_rate,
+            "spo2": row.spo2,
+            "bp_systolic": row.bp_systolic,
+            "bp_diastolic": row.bp_diastolic
+        }
+        for row in rows
+    ]
+
+    return result

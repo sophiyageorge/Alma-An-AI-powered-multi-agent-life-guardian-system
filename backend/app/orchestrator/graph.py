@@ -27,6 +27,7 @@ from app.agents.exercise.agent import exercise_agent
 from app.agents.mental_health_agent.agent import mental_health_agent
 from app.agents.grocery.agent import grocery_agent
 from app.agents.approval_agent.agent import meal_plan_approval_check, approval_condition
+from app.agents.compliance.agent import compliance_agent
 
 # Logging
 from app.core.logging_config import setup_logger
@@ -73,8 +74,8 @@ def build_graph():
     graph.add_node("nutrition", nutrition_agent)
     graph.add_node("exercise", exercise_agent)
     graph.add_node("mental", mental_health_agent)
-    graph.add_node("approval_check", meal_plan_approval_check)
     graph.add_node("grocery", grocery_agent)
+    graph.add_node("compliance", compliance_agent)
 
     # ----------------------------
     # Entry Point
@@ -101,26 +102,20 @@ def build_graph():
     # ----------------------------
     graph.add_edge("nutrition", "exercise")
     graph.add_edge("exercise", "mental")
-    logger.info("Series agent execution configured")
+   
 
     # ----------------------------
     # Nutrition → Approval Check → Grocery
     # ----------------------------
-    graph.add_edge("nutrition", "approval_check")
-    graph.add_conditional_edges(
-        "approval_check",
-        approval_condition,  # returns "approved" or "pending"
-        {
-            "approved": "grocery",
-            "pending": END
-        }
-    )
+    graph.add_edge("mental", "grocery")
+    graph.add_edge("grocery", "compliance")
+   
 
     # ----------------------------
     # Endpoints
     # ----------------------------
-    graph.add_edge("grocery", END)
-    graph.add_edge("mental", END)
+    graph.add_edge("compliance", END)
+    
     logger.info("Workflow end nodes configured")
 
     # ----------------------------

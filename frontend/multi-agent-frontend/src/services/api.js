@@ -1,4 +1,5 @@
-const BASE_URL = "http://backend-service:8000"; // your FastAPI backend
+import { API_ENDPOINTS,AUTH_API, } from "../api/endpoints";
+
 
 export const getAuthHeaders = () => {
   const token = localStorage.getItem("token");
@@ -19,11 +20,41 @@ export const getAuthHeadersform = () => {
 };
 
 
-// uncomment this
+
+export const authenticateUser = async (mode, payload) => {
+  const endpoint =
+    mode === "signin" ? AUTH_API.LOGIN : AUTH_API.REGISTER;
+
+  const body =
+    mode === "signin"
+      ? JSON.stringify({
+          email: payload.email,
+          password: payload.password,
+        })
+      : JSON.stringify({
+          name: payload.name,
+          email: payload.email,
+          date_of_birth: payload.dateOfBirth,
+          gender: payload.gender,
+          password: payload.password,
+        });
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: body,
+  });
+
+  const data = await response.json();
+
+  return { response, data };
+};
 
 
 export const getMealPlan = async () => {
-  const response = await fetch(`${BASE_URL}/nutrition/meals`, {
+  const response = await fetch(API_ENDPOINTS.GET_MEAL_PLAN, {
     method: "GET",
     headers: getAuthHeaders(),
   });
@@ -44,10 +75,10 @@ export const getMealPlan = async () => {
   return response.json();
 };
 
-export const approveMealPlan = async (mealPlanId) => {
+export const approveMealPlan = async (mealPlanId, shopNumber) => {
   try {
     const response = await fetch(
-      `${BASE_URL}/meal-approval/meal-plan/${mealPlanId}/approve`,
+      API_ENDPOINTS.MEAL_APPROVAL_API.APPROVE_MEAL_PLAN(mealPlanId, shopNumber),
       {
         method: "POST",
         headers: getAuthHeaders(), // includes JWT token
@@ -82,7 +113,7 @@ export const approveMealPlan = async (mealPlanId) => {
   }
 };
 export const getRecommendations = async () => {
-  const response = await fetch(`${BASE_URL}/exercise/recommendation`, {
+  const response = await fetch(API_ENDPOINTS.EXERCISE_API.GET_RECOMMENDATIONS, {
     method: "GET",
     headers: getAuthHeaders(),
   });
@@ -104,7 +135,7 @@ export const getRecommendations = async () => {
 };
 
 export const getJournal = async () => {
-  const response = await fetch(`${BASE_URL}/stt/journal/today`, {
+  const response = await fetch(API_ENDPOINTS.JOURNAL_API.GET_JOURNAL, {
     method: "GET",
     headers: getAuthHeaders(),
   });
@@ -127,7 +158,7 @@ export const getJournal = async () => {
 
 export const updateMealPlan = async (user_id, payload) => {
   try {
-    const response = await fetch(`http://localhost:8000/profile/${user_id}`, {
+    const response = await fetch(API_ENDPOINTS.PROFILE_API.UPDATE_MEAL_PLAN(user_id), {
       method: "PUT", // Use PUT as per API spec
       headers: {
         "Content-Type": "application/json",
@@ -153,6 +184,29 @@ export const updateMealPlan = async (user_id, payload) => {
     return await response.json();
   } catch (error) {
     console.error("Failed to update meal plan:", error);
+    throw error;
+  }
+};
+
+export const HealthDailyUpdate = async (payload) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/health-data`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData?.detail || `Server error ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("HealthDailyUpdate error:", error);
     throw error;
   }
 };

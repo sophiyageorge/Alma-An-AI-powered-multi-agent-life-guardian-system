@@ -46,6 +46,10 @@ class UserProfile(Base):
     One profile per user.
     """
 
+    phone_number = Column(String(20), nullable=True)
+    """User's phone number (optional).
+    """
+
     # ---------------------------------------------------------
     # Nutrition Preferences
     # ---------------------------------------------------------
@@ -151,21 +155,3 @@ class UserProfile(Base):
             f"User profile updated | "
             f"user_id={self.user_id}"
         )
-# # app/models/user_profile.py
-# from sqlalchemy import Column, Integer, String, JSON, DateTime
-# from sqlalchemy.sql import func
-# from app.database import Base
-
-
-# class UserProfile(Base):
-#     __tablename__ = "user_profiles"
-
-#     id = Column(Integer, primary_key=True)
-#     user_id = Column(Integer, unique=True, index=True, nullable=False)
-#     calories = Column(Integer, default=1800)
-#     diet = Column(String(50), default="vegetarian")
-#     goal = Column(String(50), default="weight loss")
-#     region = Column(String(50), default="Kerala")
-#     restrictions = Column(JSON, default=[])  # list of strings
-#     meal_type = Column(String(50), default="home food")
-#     created_at = Column(DateTime(timezone=True), server_default=func.now())

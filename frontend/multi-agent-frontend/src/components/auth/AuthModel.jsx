@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { authenticateUser } from "../../services/api";
+
 
 const AuthModel = ({ isOpen, onClose, setIsAuthenticated }) => {
   const [name, setName] = useState("");
@@ -12,65 +14,96 @@ const AuthModel = ({ isOpen, onClose, setIsAuthenticated }) => {
 
   if (!isOpen) return null;
 
+  // const handleSubmit = async (e) => {
+  //   e.preventDefault();
+
+  //   const endpoint =
+  //     mode === "signin"
+  //       ? "http://backend-service:8000/users/login"
+  //       : "http://backend-service:8000/users/register";
+        
+  //       const body =
+  // mode === "signin"
+  //   ? JSON.stringify({ email, password })
+  //   : JSON.stringify({
+  //         name,
+  //         email,
+  //         date_of_birth: dateOfBirth,
+  //         gender,
+  //         password,
+  //       });
+
+  //   try {
+  //     const response = await fetch(endpoint, {
+  //       method: "POST",
+  //       headers: {
+  //         "Content-Type": "application/json",
+  //       },
+  //       body: body,
+        
+  //     });
+
+  //     const data = await response.json();
+
+  //     console.log("Endpoint:", endpoint);
+  //     console.log("Request body:", body);
+  //     console.log("Response:", data);
+
+  //     if (!response.ok) {
+  //         console.log("Backend error:", data);
+  //         alert(JSON.stringify(data, null, 2));
+  //       }
+
+  //     if (response.ok) {
+  //       if (mode === "signin") {
+  //       localStorage.setItem("token", data.access_token);
+  //       setIsAuthenticated(true);
+  //       onClose();
+  //       alert("Authentication successful!");
+  //       navigate("/home");
+
+  //     } else {
+  //       alert("Registration successful! Please sign in.");
+  //       setMode("signin");}
+        
+  //     } else {
+  //       alert(data.detail || "Authentication failed");
+  //     }
+  //   } catch (error) {
+  //     console.error("Auth error:", error);
+  //   }
+  // };
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    const endpoint =
-      mode === "signin"
-        ? "http://backend-service:8000/users/login"
-        : "http://backend-service:8000/users/register";
-        
-        const body =
-  mode === "signin"
-    ? JSON.stringify({ email, password })
-    : JSON.stringify({
-          name,
-          email,
-          date_of_birth: dateOfBirth,
-          gender,
-          password,
-        });
+  try {
+    const { response, data } = await authenticateUser(mode, {
+      name,
+      email,
+      dateOfBirth,
+      gender,
+      password,
+    });
 
-    try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: body,
-        
-      });
-
-      const data = await response.json();
-
-      console.log("Endpoint:", endpoint);
-      console.log("Request body:", body);
-      console.log("Response:", data);
-
-      if (!response.ok) {
-          console.log("Backend error:", data);
-          alert(JSON.stringify(data, null, 2));
-        }
-
-      if (response.ok) {
-        if (mode === "signin") {
-        localStorage.setItem("token", data.access_token);
-        setIsAuthenticated(true);
-        onClose();
-        alert("Authentication successful!");
-        navigate("/home");
-
-      } else {
-        alert("Registration successful! Please sign in.");
-        setMode("signin");}
-        
-      } else {
-        alert(data.detail || "Authentication failed");
-      }
-    } catch (error) {
-      console.error("Auth error:", error);
+    if (!response.ok) {
+      alert(JSON.stringify(data, null, 2));
+      return;
     }
-  };
+
+    if (mode === "signin") {
+      localStorage.setItem("token", data.access_token);
+      setIsAuthenticated(true);
+      onClose();
+      alert("Authentication successful!");
+      navigate("/home");
+    } else {
+      alert("Registration successful! Please sign in.");
+      setMode("signin");
+    }
+  } catch (error) {
+    console.error("Auth error:", error);
+  }
+};
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50">
