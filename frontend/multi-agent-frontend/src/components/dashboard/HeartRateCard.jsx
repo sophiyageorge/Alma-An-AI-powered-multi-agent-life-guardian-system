@@ -1,65 +1,40 @@
-// 
-import React, { useEffect, useRef, useState } from "react";
+//
+import React, { useEffect, useState } from "react";
 import { Activity, TrendingUp } from "lucide-react";
+import { getHealth } from "../../services/api";
 
-export default function HeartRateCardTest() {
+export default function HeartRateCard() {
   const [heartRate, setHeartRate] = useState(0);
-  const [status, setStatus] = useState("Connecting...");
   const [mounted, setMounted] = useState(false);
-  const wsRef = useRef(null);
+  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    connectWebSocket();
 
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
+    const loadHeartRate = async () => {
+      try {
+        const data = await getHealth();
+        setHeartRate(Number(data?.heart_rate ?? 0));
+        setConnected(true);
+      } catch (error) {
+        console.error(error);
+        setConnected(false);
       }
     };
+
+    loadHeartRate();
   }, []);
 
-  const connectWebSocket = () => {
-    const ws = new WebSocket("ws://localhost:8000/realtime/ws");
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      console.log("HeartRate WebSocket connected");
-      setStatus("Live");
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-
-        if (msg.heart_rate) {
-          setHeartRate(Number(msg.heart_rate));
-        }
-      } catch (err) {
-        console.error("Parse error:", err);
-      }
-    };
-
-    ws.onclose = () => {
-      console.log("WebSocket closed. Reconnecting...");
-      setStatus("Reconnecting...");
-      setTimeout(connectWebSocket, 2000);
-    };
-
-    ws.onerror = (err) => {
-      console.error("WebSocket error:", err);
-      ws.close();
-    };
-  };
-
+    
   const getCondition = () => {
-    if (heartRate === 0) return "Waiting...";
+    if (!heartRate) return "No data";
     if (heartRate < 60) return "Low";
     if (heartRate > 100) return "High";
     return "Normal";
   };
 
   const getConditionColor = () => {
+    if (!heartRate) return "text-gray-300";
     if (heartRate < 60) return "text-yellow-400";
     if (heartRate > 100) return "text-red-400";
     return "text-green-400";
@@ -95,20 +70,21 @@ export default function HeartRateCardTest() {
         {/* Heart Rate Value */}
         <div className="flex items-baseline gap-3 mb-3">
           <div className="text-5xl font-bold text-white transition-all duration-300 group-hover:text-cyan-300">
-            {heartRate}
+            {heartRate || "--"}
           </div>
           <div className="text-cyan-300 text-lg">bpm</div>
         </div>
 
-        {/* Status */}
         <div className="text-xs text-gray-400 mb-3">
-          Status: {status}
+          {connected ? "Connected" : "Disconnected"}
         </div>
 
         {/* Quote Section */}
         <div className="bg-white/5 rounded-lg p-3 hover:bg-white/10 transition-colors duration-300">
           <div className="text-sm font-semibold text-white">
-            Every heartbeat is a reminder that you're alive and thriving.
+            {!heartRate
+              ? "Please enter your health data daily to see your heart rate trend."
+              : "Every heartbeat is a reminder that you're alive and thriving."}
           </div>
         </div>
       </div>

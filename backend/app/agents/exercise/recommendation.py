@@ -10,7 +10,7 @@ import re
 
 from app.llm.llm_client import llm
 from app.agents.exercise.prompt import build_exercise_prompt
-from app.crud.exercise import save_exercise_entry
+from app.crud.exercise import save_exercise_entry,update_exercise_entry,get_today_exercise_entry
 from app.core.logging_config import setup_logger
 from app.core.exceptions import ExerciseAgentError
 
@@ -114,19 +114,38 @@ def recommend_exercise(user_id: int, metrics: dict | None, db) -> dict:
 
             recommendation = _fallback_plan()
 
+
+        today_entry = get_today_exercise_entry(db, user_id)
+        clean_llm = re.sub(r"```json|```", "", llm_text).strip()
+        if today_entry:
+             # ------------------------------------------------
+        # 4️⃣  Update database
         # ------------------------------------------------
+
+            entry = update_exercise_entry(
+                db=db,
+                entry_id=today_entry.id,
+                llm_response=clean_llm,
+                recommendation=recommendation,
+                health_metric_id=metrics["id"] if metrics else None
+            )
+            logger.info(f"Exercise recommendation updated id={entry.id}") 
+        else:
+             # ------------------------------------------------
         # 4️⃣ Save to database
         # ------------------------------------------------
 
-        entry = save_exercise_entry(
-            db=db,
-            user_id=user_id,
-            llm_response=llm_text,
-            recommendation=recommendation,
-            health_metric_id=metrics.id if metrics else None
-        )
+            entry = save_exercise_entry(
+                db=db,
+                user_id=user_id,
+                llm_response=clean_llm,
+                recommendation=recommendation,
+                health_metric_id=metrics.id if metrics else None
+            )
 
-        logger.info(f"Exercise recommendation saved id={entry.id}")
+    
+
+            logger.info(f"Exercise recommendation saved id={entry.id}")
 
         # ------------------------------------------------
         # 5️⃣ Return  exercise plan
@@ -138,7 +157,7 @@ def recommend_exercise(user_id: int, metrics: dict | None, db) -> dict:
             "plan": recommendation["plan"],
             "warnings": recommendation["warnings"],
             "recovery_advice": recommendation["recovery_advice"],
-            "llm_response": llm_text,
+            "llm_response": clean_llm,
             "date_created": entry.created_at,
         }
 

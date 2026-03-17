@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from app.models.mental_health import JournalEntry
 import logging
+from app.core.exceptions import MentalHealthAgentError
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -95,5 +96,47 @@ def save_journal(db: Session, user_id: int, journal_text: str, llm_response: str
         db.rollback()
         logger.exception(f"Failed to save journal entry | user_id={user_id}")
         raise e
-def update_journal(db: Session, user_id: int, journal_text: str, llm_response: str, language: str = "en") -> JournalEntry:
-    pass
+
+
+def update_journal(
+    db: Session,
+    journal_id: int,
+    journal_text: str,
+    llm_response: str,
+    language: str = "en"
+) -> JournalEntry:
+    """
+    Update an existing journal entry by ID.
+
+    Args:
+        db: SQLAlchemy Session
+        journal_id: ID of the journal entry to update
+        journal_text: updated journal text
+        llm_response: updated LLM response
+        language: language of the journal (default "en")
+
+    Returns:
+        Updated JournalEntry object
+
+    Raises:
+        MentalHealthAgentError: if journal entry not found
+    """
+
+    # 1️⃣ Fetch existing journal entry
+    entry = db.query(JournalEntry).filter(JournalEntry.id == journal_id).first()
+    
+    if not entry:
+        raise MentalHealthAgentError(f"Journal entry with id={journal_id} not found")
+
+    # 2️⃣ Update fields
+    entry.journal_text = journal_text
+    entry.llm_response = llm_response
+    entry.language = language
+    entry.updated_at = datetime.utcnow()  # assuming your model has updated_at
+
+    # 3️⃣ Commit changes
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+
+    return entry

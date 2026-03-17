@@ -36,8 +36,9 @@ class HealthMetricsCreate(HealthMetricsBase):
     """
     Schema used when creating a new health metric entry.
     """
+    pass
 
-    user_id: int
+    # user_id: int
 
 
 # ---------------------------------------------------------
@@ -68,7 +69,7 @@ class HealthMetricsResponse(HealthMetricsBase):
     """
 
     id: int
-    user_id: int
+    # user_id: int
     timestamp: datetime
 
     class Config:

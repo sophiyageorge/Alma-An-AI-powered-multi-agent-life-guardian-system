@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { HealthDailyUpdate } from "../../services/api";
+import toast from "react-hot-toast";
 
-// ── config ────────────────────────────────────────────────────────────────────
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+// // ── config ────────────────────────────────────────────────────────────────────
+// const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const METRICS = [
   {
@@ -204,7 +205,7 @@ export default function HealthDailyUpdateForm({ userId, onSuccess }) {
   setError(null);
 
   const payload = {
-    user_id: userId ?? null,
+    // user_id: userId ?? null,
     heart_rate: form.heart_rate !== "" ? parseInt(form.heart_rate, 10) : null,
     spo2: form.spo2 !== "" ? parseInt(form.spo2, 10) : null,
     bp_systolic: form.bp_systolic !== "" ? parseInt(form.bp_systolic, 10) : null,
@@ -213,11 +214,13 @@ export default function HealthDailyUpdateForm({ userId, onSuccess }) {
       ? new Date(form.timestamp).toISOString()
       : new Date().toISOString(),
   };
-
+  console.log(payload)
   try {
     const result = await HealthDailyUpdate(payload);
 
     setSuccess(true);
+    toast.success("Health Data Added")
+    window.location.href="/home"
     onSuccess?.(result);
   } catch (err) {
     setError(err.message || "Failed to save. Please try again.");

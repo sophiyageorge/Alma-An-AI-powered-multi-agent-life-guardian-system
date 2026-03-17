@@ -42,12 +42,14 @@ import MealPlan from "./components/dashboard/MealPlan";
 import BloodPressureCard from "./components/dashboard/BloodPressureCard";
 import HeartRateCard from "./components/dashboard/HeartRateCard";
 import AudioRecorder from "./components/dashboard/AudioRecorder";
-import HeartRateChart from "./components/charts/HeartRateChart";
-import BloodPressureChart from "./components/charts/BloodPressureChart";
+import MonthlyHealthTrendChart from "./components/charts/MonthlyHealthTrendChart";
+import WeeklyBpTrendChart from "./components/charts/WeeklyBpTrendChart";
 import CurrentMeal from "./components/dashboard/CurrentMeal";
 import Journal from "./components/dashboard/Journal";
 import ExercisePlan from "./components/dashboard/ExercisePlan";
 import HealthDailyUpdateForm from "./components/dashboard/HealthDailyUpdateForm";
+import LogoutButton from "./components/auth/LogoutButton";
+import AlmaHeader from "./components/AlmaHeader";
 // import MealPlanActions from "./UpdateMealPlan";
 
 
@@ -64,6 +66,7 @@ function App() {
   const [currentBgIndex, setCurrentBgIndex] = useState(0);
   const [transcript, setTranscript] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showHealthForm, setShowHealthForm] = useState(false);
   
 
   // Health and wellness themed background images from local assets
@@ -301,7 +304,7 @@ function App() {
 {isAuthenticated && <p>Welcome, you are logged in!</p>}
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header with Fade In Animation */}
-        <header
+        {/* <header
           className={`mb-12 pt-6 transition-all duration-1000 ${mounted
               ? "opacity-100 translate-y-0"
               : "opacity-0 -translate-y-10"
@@ -315,23 +318,43 @@ function App() {
               Welcome !
             </h1>
           </div>
+          <div className="flex justify-end mb-4">
+  <LogoutButton />
+</div>
           <p className="text-cyan-200 text-base sm:text-lg ml-0 sm:ml-14">
             Your personalized wellness journey continues ✨
           </p>
-        </header>
-
+        </header> */}
+            <AlmaHeader />
         {/* Stats Cards - Slide in from sides */}
+        <div className="flex items-center justify-end mb-4">
+          <button
+            type="button"
+            onClick={() => setShowHealthForm((v) => !v)}
+            className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white hover:bg-white/15 transition"
+          >
+            {showHealthForm ? "Close daily health form" : "Add today’s health data"}
+          </button>
+        </div>
+
+        {showHealthForm && (
+          <div className="mb-6 flex justify-center">
+            <HealthDailyUpdateForm
+              onSuccess={() => {
+                setShowHealthForm(false);
+              }}
+            />
+          </div>
+        )}
+       
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6">
 
           {/* Heart Rate card */}
-               <HealthDailyUpdateForm /> 
-           <HeartRateCard /> 
-           {/* <HealthDailyUpdateForm /> */}
-           
+          <HeartRateCard />
 
             {/* Blood Pressure Card */}
-
-           <BloodPressureCard /> 
+          <BloodPressureCard />
         
         
     
@@ -345,11 +368,11 @@ function App() {
         >
           {/* Heart Rate Chart */}
 
-           {/* <HeartRateChart /> */}
+            <MonthlyHealthTrendChart /> 
 
           {/* Blood Pressure Chart */}
 
-         {/* <BloodPressureChart /> */}
+          <WeeklyBpTrendChart /> 
        
         </div>
 
@@ -404,11 +427,13 @@ function App() {
           }}
         >
           <strong>Transcribed Text:</strong>
-          <p style={{ marginTop: "10px", fontSize: "16px" }}>{ setTranscript(data.text)}</p>
+          <p style={{ marginTop: "10px", fontSize: "16px" }}>{transcript}</p>
          
         </div>
+        
       )}
     </div>
+    
       </div>
       {/* <Journal /> */}
 
@@ -499,6 +524,7 @@ function App() {
           animation: shimmer 3s infinite;
         }
       `}</style>
+      
     </div>
 
     

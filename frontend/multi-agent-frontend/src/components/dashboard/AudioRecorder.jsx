@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { getAuthHeadersform, getJournal } from "../../services/api";
 import { Sparkles, Mic, Square, Heart, Lightbulb, Calendar } from "lucide-react";
+import { transcribeAudio } from "../../services/api";
 
 function parseJournalResponse(text) {
   if (!text) return { intro: "", tips: [], closing: "" };
@@ -58,44 +59,38 @@ const AudioRecorder = ({ userId, onTranscription }) => {
     fetchJournal();
   }, []);
 
+
+
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorderRef.current = new MediaRecorder(stream);
       audioChunksRef.current = [];
-
+  
       mediaRecorderRef.current.ondataavailable = (event) => {
         if (event.data.size > 0) audioChunksRef.current.push(event.data);
       };
-
+  
       mediaRecorderRef.current.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: "audio/mp4" });
         const url = URL.createObjectURL(audioBlob);
         setAudioURL(url);
-
-        const formData = new FormData();
-        formData.append("file", audioBlob, "recording.mp4");
-
+  
         try {
-          const response = await fetch("http://backend-service:8000/stt/transcribe", {
-            method: "POST",
-            body: formData,
-            headers: getAuthHeadersform(),
-          });
-          const data = await response.json();
-          onTranscription && onTranscription(data.text);
+          const transcription = await transcribeAudio(audioBlob);
+          onTranscription && onTranscription(transcription);
+          window.location.href="/home"
         } catch (err) {
-          console.error("Error sending audio to STT API:", err);
+          console.error("Transcription failed:", err);
         }
       };
-
+  
       mediaRecorderRef.current.start();
-      setRecording(true);
+      setRecording(true); 
     } catch (err) {
-      console.error("Microphone access denied:", err);
+      console.error("Error accessing microphone:", err);
     }
   };
-
   const stopRecording = () => {
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();

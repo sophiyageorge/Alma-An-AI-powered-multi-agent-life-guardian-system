@@ -1,90 +1,8 @@
 
-// // export default MealPlanActions;
-// import { useState } from "react";
-// import { updateMealPlan } from "../../services/api";
-// import { createPortal } from "react-dom";
-
-// function MealPlanActions({  userId, currentPlan, onClose }) {
-//   const [formData, setFormData] = useState(currentPlan || {});
-//   const [loading, setLoading] = useState(false);
-
-//   // Update form field
-//   const handleChange = (key, value) => {
-//     setFormData({ ...formData, [key]: value });
-//   };
-
-//   // Submit updated plan
-//   const handleUpdate = async () => {
-//     try {
-//       setLoading(true);
-//       await updateMealPlan(userId, formData);
-//       alert("Meal plan updated successfully ✅");
-//       onClose();
-//     } catch (err) {
-//       console.error(err);
-//       alert("Update failed ❌");
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-  
-//   return createPortal(
-//   <div
-//     className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999]"
-//     onClick={onClose}
-//   >
-//     <div
-//       className="bg-gray-900 p-6 rounded-2xl w-full max-w-md border border-white/10 max-h-[90vh]"
-//       onClick={(e) => e.stopPropagation()}
-//     >
-//       <h3 className="text-xl font-bold text-white mb-5">
-//         Update Meal Plan Preferences
-//       </h3>
-
-//       <div className="space-y-4">
-//         {Object.entries(formData).map(([key, value]) => (
-//           <div key={key}>
-//             <label className="text-sm text-gray-400 capitalize">
-//               {key.replace("_", " ")}
-//             </label>
-
-//             <input
-//               type="text"
-//               value={value}
-//               onChange={(e) => handleChange(key, e.target.value)}
-//               className="w-full mt-1 p-2 rounded-lg bg-white/5 border border-white/10 text-white"
-//             />
-//           </div>
-//         ))}
-//       </div>
-
-//       <div className="flex justify-end gap-3 mt-6">
-//         <button
-//           onClick={onClose}
-//           className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg"
-//         >
-//           Cancel
-//         </button>
-
-//         <button
-//           onClick={handleUpdate}
-//           className="px-4 py-2 bg-amber-500 text-white rounded-lg"
-//         >
-//           Submit
-//         </button>
-//       </div>
-//     </div>
-//   </div>,
-//   document.body
-// );
-// }
-
-// export default MealPlanActions;
-
 import { useState } from "react";
 import { updateMealPlan } from "../../services/api";
 import { createPortal } from "react-dom";
+import toast from "react-hot-toast";
 
 function MealPlanActions({ userId, currentPlan, onClose }) {
   const [formData, setFormData] = useState({
@@ -122,11 +40,15 @@ function MealPlanActions({ userId, currentPlan, onClose }) {
 
       await updateMealPlan(userId, payload);
 
-      alert("Meal plan updated successfully ✅");
+      // alert("Meal plan updated successfully ✅");
+      toast.success("Meal plan updated successfully ✅")
+      window.location.href="/home"
+      
       onClose();
     } catch (err) {
       console.error(err);
-      alert("Update failed ❌");
+      // alert("Update failed ❌");
+      // toast.error("Update failed ❌")
     } finally {
       setLoading(false);
     }

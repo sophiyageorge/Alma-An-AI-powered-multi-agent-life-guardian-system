@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { authenticateUser } from "../../services/api";
+import toast from 'react-hot-toast';
 
 
 const AuthModel = ({ isOpen, onClose, setIsAuthenticated }) => {
@@ -11,70 +12,14 @@ const AuthModel = ({ isOpen, onClose, setIsAuthenticated }) => {
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState("signin");
   const navigate = useNavigate()
+  const [loading,setLoading] = useState(false)
 
   if (!isOpen) return null;
 
-  // const handleSubmit = async (e) => {
-  //   e.preventDefault();
 
-  //   const endpoint =
-  //     mode === "signin"
-  //       ? "http://backend-service:8000/users/login"
-  //       : "http://backend-service:8000/users/register";
-        
-  //       const body =
-  // mode === "signin"
-  //   ? JSON.stringify({ email, password })
-  //   : JSON.stringify({
-  //         name,
-  //         email,
-  //         date_of_birth: dateOfBirth,
-  //         gender,
-  //         password,
-  //       });
-
-  //   try {
-  //     const response = await fetch(endpoint, {
-  //       method: "POST",
-  //       headers: {
-  //         "Content-Type": "application/json",
-  //       },
-  //       body: body,
-        
-  //     });
-
-  //     const data = await response.json();
-
-  //     console.log("Endpoint:", endpoint);
-  //     console.log("Request body:", body);
-  //     console.log("Response:", data);
-
-  //     if (!response.ok) {
-  //         console.log("Backend error:", data);
-  //         alert(JSON.stringify(data, null, 2));
-  //       }
-
-  //     if (response.ok) {
-  //       if (mode === "signin") {
-  //       localStorage.setItem("token", data.access_token);
-  //       setIsAuthenticated(true);
-  //       onClose();
-  //       alert("Authentication successful!");
-  //       navigate("/home");
-
-  //     } else {
-  //       alert("Registration successful! Please sign in.");
-  //       setMode("signin");}
-        
-  //     } else {
-  //       alert(data.detail || "Authentication failed");
-  //     }
-  //   } catch (error) {
-  //     console.error("Auth error:", error);
-  //   }
-  // };
   const handleSubmit = async (e) => {
   e.preventDefault();
+  setLoading(true)
 
   try {
     const { response, data } = await authenticateUser(mode, {
@@ -86,7 +31,15 @@ const AuthModel = ({ isOpen, onClose, setIsAuthenticated }) => {
     });
 
     if (!response.ok) {
-      alert(JSON.stringify(data, null, 2));
+      // alert(JSON.stringify(data, null, 2));
+      if (!response.ok) {
+  const errorData = await response.json();
+  console.error("API Error:", errorData);
+  toast.error(`Error: ${response.status}`);
+  return;
+}
+
+
       return;
     }
 
@@ -94,15 +47,21 @@ const AuthModel = ({ isOpen, onClose, setIsAuthenticated }) => {
       localStorage.setItem("token", data.access_token);
       setIsAuthenticated(true);
       onClose();
-      alert("Authentication successful!");
+      // alert("Authentication successful!");
+      toast.success('Authentication successful!!')
+     
       navigate("/home");
     } else {
-      alert("Registration successful! Please sign in.");
+      // alert("Registration successful! Please sign in.");
+       toast.success('Registration successful! Please sign in.')
       setMode("signin");
     }
   } catch (error) {
     console.error("Auth error:", error);
   }
+finally{
+   setLoading(false)
+}
 };
 
   return (
@@ -146,30 +105,7 @@ const AuthModel = ({ isOpen, onClose, setIsAuthenticated }) => {
               </select></>
 
             )}
-          {/* <input
-            type="text"
-            placeholder="Name"
-            className="border p-2 rounded"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-          <input
-            type="date"
-            placeholder="Date of Birth"
-            className="border p-2 rounded"
-            value={dateOfBirth}
-            onChange={(e) => setDateOfBirth(e.target.value)}
-            required
-          />
-          <input
-            type="text"
-            placeholder="Gender"
-            className="border p-2 rounded"
-            value={gender}
-            onChange={(e) => setGender(e.target.value)}
-            required
-          /> */}
+         
           <input
             type="password"
             placeholder="Password"
@@ -179,9 +115,38 @@ const AuthModel = ({ isOpen, onClose, setIsAuthenticated }) => {
             required
           />
 
-          <button className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">
-            {mode === "signin" ? "Login" : "Create Account"}
-          </button>
+        <button
+  className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 flex items-center justify-center"
+  disabled={loading} // optionally disable while loading
+>
+  {loading ? (
+    <>
+      <svg
+        className="animate-spin h-5 w-5 mr-2 text-white"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <circle
+          className="opacity-25"
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          strokeWidth="4"
+        />
+        <path
+          className="opacity-75"
+          fill="currentColor"
+          d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+        />
+      </svg>
+      Loading...
+    </>
+  ) : (
+    mode === "signin" ? "Login" : "Create Account"
+  )}
+</button>
 
                   <div className="mt-4 text-center text-sm">
   {mode === "signin" ? (

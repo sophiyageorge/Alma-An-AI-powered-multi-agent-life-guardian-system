@@ -3,70 +3,153 @@ import { getMealPlan } from "../../services/api";
 import { Apple, Sparkles, Flame } from "lucide-react";
 
 function CurrentMeal({ mounted }) {
-  const [meals, setMeals] = useState([]);
-  const [selectedMeal, setSelectedMeal] = useState(null);
+  const [mealsByType, setMealsByType] = useState({});
+  const [error, setError] = useState(null);
 
 useEffect(() => {
   const loadMealPlan = async () => {
     try {
+      setError(null);
       const data = await getMealPlan();
 
       const text = typeof data === "string" ? data : data.meal_plan;
 
-      const parsedMeals = extractTodayMeals(text);
-      setMeals(parsedMeals);
+      const parsedMeals = parseMealPlan(text);
+
+      // Plan day numbering is Day 1..7 while JS getDay() is 0..6.
+      // Treat Sunday as Day 1, Monday as Day 2, ... Saturday as Day 7.
+      const todayKey = `day${new Date().getDay() + 1}`;
+
+      const todayMeals = parsedMeals?.[todayKey] ?? [];
+      setMealsByType(groupMealsByType(todayMeals));
 
     } catch (error) {
       console.error(error);
+      setError(error?.message || "Failed to load today's meal plan");
     }
   };
 
   loadMealPlan();
 }, []);
 
-const extractTodayMeals = (text) => {
-  const todayIndex = new Date().getDay();
-  const dayNumber = todayIndex === 0 ? 7 : todayIndex;
-  const todayLabel = `Day ${dayNumber}`;
+const groupMealsByType = (meals) => {
+  const grouped = { breakfast: [], lunch: [], dinner: [], snacks: [] };
+  for (const m of meals) {
+    const t = (m?.type || "").toLowerCase();
+    if (t.startsWith("breakfast")) grouped.breakfast.push(m);
+    else if (t.startsWith("lunch")) grouped.lunch.push(m);
+    else if (t.startsWith("dinner")) grouped.dinner.push(m);
+    else grouped.snacks.push(m);
+  }
+  return grouped;
+};
 
-  // Split text into day sections
-  const sections = text.split(/Day\s*\d+:/i);
-  const dayMatches = text.match(/Day\s*\d+/gi);
+const parseMealPlan = (text) => {
+  if (typeof text !== "string") return {};
+  const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
-  if (!dayMatches) return [];
+  const dayMatches = [
+    ...normalized.matchAll(/(?:\*\*)?\bDay\s*(\d+)\b(?:\*\*)?\s*:?\s*/gi),
+  ];
+  if (dayMatches.length === 0) return {};
 
-  let todaySection = "";
+  const days = {};
 
-  dayMatches.forEach((label, index) => {
-    if (label.toLowerCase() === todayLabel.toLowerCase()) {
-      todaySection = sections[index + 1];
-    }
-  });
+  for (let i = 0; i < dayMatches.length; i++) {
+    const dayNumber = dayMatches[i][1];
+    const dayKey = `day${dayNumber}`;
+    const startIdx = dayMatches[i].index + dayMatches[i][0].length;
+    const endIdx = i + 1 < dayMatches.length ? dayMatches[i + 1].index : normalized.length;
+    const block = normalized.slice(startIdx, endIdx).trim();
 
-  if (!todaySection) return [];
+    const lines = block
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
 
-  const mealLines = todaySection
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
+    const meals = [];
+    let currentType = null;
+    let buffer = [];
 
-  return mealLines.map((line) => {
-    const calorieMatch = line.match(/(\d+)\s*cal/i);
-    const proteinMatch = line.match(/protein\s*(\d+)g/i);
-    const carbsMatch = line.match(/carbs?\s*(\d+)g/i);
-    const fatsMatch = line.match(/fats?\s*(\d+)g/i);
+    const flush = () => {
+      if (!currentType || buffer.length === 0) return;
 
-    return {
-      name: line.split("(")[0],
-      time: "",
-      calories: calorieMatch ? calorieMatch[1] : 0,
-      macros: {
-        protein: proteinMatch ? proteinMatch[1] : 0,
-        carbs: carbsMatch ? carbsMatch[1] : 0,
-        fats: fatsMatch ? fatsMatch[1] : 0,
-      },
+      const firstLine = buffer[0] ?? "";
+      const foodLine =
+        buffer.find((l) => /^-?\s*food\s*name\s*:/i.test(l)) ?? firstLine;
+      const ingredientsLine = buffer.find((l) => /^-?\s*ingredients\s*:/i.test(l));
+      const caloriesLine = buffer.find((l) => /^-?\s*calories\s*:/i.test(l));
+      const prepLine = buffer.find((l) => /^-?\s*preparation\s*tip\s*:/i.test(l));
+
+      const foodValue = foodLine.replace(/^-?\s*food\s*name\s*:\s*/i, "").trim();
+      const name = (foodValue.split("(")[0].trim() || firstLine)
+        .replace(/^\*+\s*/, "")
+        .replace(/\*\*/g, "")
+        .trim();
+
+      const qtyMatch = foodValue.match(/\(([^)]*)\)/);
+      const quantityAndIngredients = qtyMatch ? qtyMatch[1].trim() : "";
+
+      const caloriesMatch = caloriesLine?.match(/(\d+)\s*(kcal|cal)/i);
+      const calories = caloriesMatch ? Number(caloriesMatch[1]) : 0;
+
+      const ingredients = ingredientsLine
+        ? ingredientsLine.replace(/^-?\s*ingredients\s*:\s*/i, "").trim()
+        : "";
+
+      const preparationTip = prepLine
+        ? prepLine.replace(/^-?\s*preparation\s*tip\s*:\s*/i, "").trim()
+        : "";
+
+      meals.push({
+        key: `${dayKey}-${currentType}-${meals.length}`,
+        type: currentType,
+        name: name || currentType,
+        calories,
+        quantityAndIngredients,
+        ingredients,
+        preparationTip,
+      });
+
+      buffer = [];
     };
-  });
+
+    for (const line of lines) {
+      const mdHeader = line.match(
+        /^([*-])\s*(?:\*\*)?(Breakfast|Lunch|Dinner|Snacks?|Snack)(?:\*\*)?\s*:\s*(.+)?$/i
+      );
+      if (mdHeader) {
+        flush();
+        currentType = mdHeader[2].toLowerCase();
+        buffer = [];
+        const maybeTitle = (mdHeader[3] ?? "").trim();
+        if (maybeTitle) buffer.push(maybeTitle);
+        continue;
+      }
+
+      const headingMatch = line.match(/^(Breakfast|Lunch|Dinner|Snacks|Snack)\s*:\s*$/i);
+      if (headingMatch) {
+        flush();
+        currentType = headingMatch[1].toLowerCase();
+        buffer = [];
+        continue;
+      }
+
+      if (/^daily\s+total\s+calories\s*:/i.test(line)) {
+        flush();
+        currentType = null;
+        buffer = [];
+        continue;
+      }
+
+      if (currentType) buffer.push(line);
+    }
+
+    flush();
+    days[dayKey] = meals;
+  }
+
+  return days;
 };
 
   return (
@@ -91,77 +174,70 @@ const extractTodayMeals = (text) => {
         </div>
 
         {/* Meals */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {meals.length === 0 ? (
-            <p className="text-gray-400">No meal data available</p>
-          ) : (
-            meals.map((meal, idx) => (
-              <div
-                key={idx}
-                onClick={() =>
-                  setSelectedMeal(idx === selectedMeal ? null : idx)
-                }
-                className={`group relative bg-white/5 border border-white/10 rounded-xl p-4 cursor-pointer transition-all duration-300 hover:scale-105 ${
-                  selectedMeal === idx
-                    ? "ring-2 ring-amber-500/50 scale-105"
-                    : ""
-                }`}
-              >
-                <div className="text-4xl mb-3">
-                  {meal.icon || "🍽️"}
-                </div>
-
-                <div className="font-semibold text-white mb-1">
-                  {meal.name}
-                </div>
-
-                <div className="text-xs text-gray-400 mb-3">
-                  {meal.time}
-                </div>
-
-                <div className="flex items-center gap-2 mb-3">
-                  <Flame className="w-4 h-4 text-orange-400" />
-                  <span className="font-semibold text-white">
-                    {meal.calories}
-                  </span>
-                  <span className="text-xs text-gray-400">cal</span>
-                </div>
-
-                {/* Expand Macros */}
+        {error ? (
+          <div className="text-gray-300 bg-white/5 border border-white/10 rounded-xl p-4">
+            {error}
+          </div>
+        ) : Object.values(mealsByType).every((arr) => (arr?.length ?? 0) === 0) ? (
+          <div className="text-gray-300 bg-white/5 border border-white/10 rounded-xl p-4">
+            Please enter your health data daily to keep your meal plan personalized and up to date.
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+              {["breakfast", "lunch", "snacks", "dinner"].map((type) => (
                 <div
-                  className={`overflow-hidden transition-all duration-300 ${
-                    selectedMeal === idx
-                      ? "max-h-20 opacity-100"
-                      : "max-h-0 opacity-0"
-                  }`}
+                  key={type}
+                  className="bg-white/5 border border-white/10 rounded-2xl p-4"
                 >
-                  <div className="pt-3 border-t border-white/10 grid grid-cols-3 gap-2 text-xs">
-                    <div className="text-center">
-                      <div className="text-cyan-400 font-semibold">
-                        {meal.macros?.protein}g
+                  <div className="text-white font-semibold mb-3 capitalize">
+                    {type}
+                  </div>
+                  <div className="space-y-3">
+                    {(mealsByType[type] ?? []).length === 0 ? (
+                      <div className="text-sm text-gray-300">
+                        No {type} listed for today.
                       </div>
-                      <div className="text-gray-400">Protein</div>
-                    </div>
+                    ) : (
+                      (mealsByType[type] ?? []).map((meal) => (
+                        <div
+                          key={meal.key}
+                          className="group relative bg-black/10 border border-white/10 rounded-xl p-4 transition-all duration-300 hover:bg-black/20"
+                        >
+                          <div className="font-semibold text-white mb-1">
+                            {meal.name}
+                          </div>
 
-                    <div className="text-center">
-                      <div className="text-amber-400 font-semibold">
-                        {meal.macros?.carbs}g
-                      </div>
-                      <div className="text-gray-400">Carbs</div>
-                    </div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Flame className="w-4 h-4 text-orange-400" />
+                            <span className="font-semibold text-white">
+                              {meal.calories || "--"}
+                            </span>
+                            <span className="text-xs text-gray-400">kcal</span>
+                          </div>
 
-                    <div className="text-center">
-                      <div className="text-rose-400 font-semibold">
-                        {meal.macros?.fats}g
-                      </div>
-                      <div className="text-gray-400">Fats</div>
-                    </div>
+                          {meal.quantityAndIngredients ? (
+                            <div className="text-sm text-gray-200">
+                              <span className="text-gray-400">Quantity:</span>{" "}
+                              {meal.quantityAndIngredients}
+                            </div>
+                          ) : null}
+
+                          {meal.preparationTip ? (
+                            <div className="text-sm text-gray-200 mt-2">
+                              <span className="text-gray-400">Tip:</span>{" "}
+                              {meal.preparationTip}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
-              </div>
-            ))
-          )}
-        </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
   );

@@ -70,35 +70,34 @@ def exercise_agent(state: OrchestratorState) -> OrchestratorState:
         # 3️⃣ Check if today's exercise plan exists
         # ------------------------------------------------
 
+        # ------------------------------------------------
+# 3️⃣ Check if today's exercise plan exists
+# ------------------------------------------------
+
         today_entry = get_today_exercise_entry(db, user_id)
 
+        regenerate = False
+
         if today_entry:
+            # If the existing entry has no llm_response or health metrics were missing
+            if not today_entry.llm_response or today_entry.health_metric_id is None:
+                regenerate = True
+                logger.info(
+                    "Existing entry found but health data missing. Regenerating exercise plan."
+                )
+            else:
+                logger.info("Using existing exercise recommendation")
 
-            logger.info("Using existing exercise recommendation")
-
-            exercise_plan = {
-                "id": today_entry.id,
-                "user_id": today_entry.user_id,
-                "intensity": today_entry.intensity,
-                "plan": today_entry.plan or [],
-                "warnings": today_entry.warnings or [],
-                "recovery_advice": today_entry.recovery_advice,
-                "llm_response": today_entry.llm_response,
-                "date_created": today_entry.created_at,
-            }
-
-        else:
-
-            logger.info("Generating new exercise recommendation")
-
+        if not today_entry or regenerate:
+            # Generate new exercise recommendation
             llm_result = recommend_exercise(
                 user_id=user_id,
-                metrics=health_metrics ,
+                metrics=health_metrics,
                 db=db
             )
 
             exercise_plan = {
-                "id": None,
+                "id": today_entry.id if today_entry else None,
                 "user_id": user_id,
                 "intensity": llm_result.get("intensity"),
                 "plan": llm_result.get("plan", []),
@@ -113,6 +112,63 @@ def exercise_agent(state: OrchestratorState) -> OrchestratorState:
                 exercise_plan["warnings"].append(
                     "Health metrics unavailable. Recommendation is generic and should be followed cautiously."
                 )
+
+        else:
+            # Use existing entry
+            exercise_plan = {
+                "id": today_entry.id,
+                "user_id": today_entry.user_id,
+                "intensity": today_entry.intensity,
+                "plan": today_entry.plan or [],
+                "warnings": today_entry.warnings or [],
+                "recovery_advice": today_entry.recovery_advice,
+                "llm_response": today_entry.llm_response,
+                "date_created": today_entry.created_at,
+            }
+
+        # today_entry = get_today_exercise_entry(db, user_id)
+
+        # if today_entry:
+
+        #     logger.info("Using existing exercise recommendation")
+
+        #     exercise_plan = {
+        #         "id": today_entry.id,
+        #         "user_id": today_entry.user_id,
+        #         "intensity": today_entry.intensity,
+        #         "plan": today_entry.plan or [],
+        #         "warnings": today_entry.warnings or [],
+        #         "recovery_advice": today_entry.recovery_advice,
+        #         "llm_response": today_entry.llm_response,
+        #         "date_created": today_entry.created_at,
+        #     }
+
+        # else:
+
+        #     logger.info("Generating new exercise recommendation")
+
+        #     llm_result = recommend_exercise(
+        #         user_id=user_id,
+        #         metrics=health_metrics ,
+        #         db=db
+        #     )
+
+        #     exercise_plan = {
+        #         "id": None,
+        #         "user_id": user_id,
+        #         "intensity": llm_result.get("intensity"),
+        #         "plan": llm_result.get("plan", []),
+        #         "warnings": llm_result.get("warnings", []),
+        #         "recovery_advice": llm_result.get("recovery_advice"),
+        #         "llm_response": llm_result.get("llm_response"),
+        #         "date_created": datetime.utcnow(),
+        #     }
+
+        #     # Optional disclaimer if health data missing
+        #     if not health_metrics:
+        #         exercise_plan["warnings"].append(
+        #             "Health metrics unavailable. Recommendation is generic and should be followed cautiously."
+        #         )
 
         # ------------------------------------------------
         # 4️⃣ Update orchestrator state

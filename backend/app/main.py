@@ -53,7 +53,7 @@ logger.info("Starting Wellness Guidance System API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Vite frontend
+    allow_origins=["*"],  # Vite frontend
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

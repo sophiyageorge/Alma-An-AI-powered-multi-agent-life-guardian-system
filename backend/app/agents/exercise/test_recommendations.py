@@ -1,124 +1,150 @@
 """
-Unit tests for Exercise recommendation logic.
+test_exercise_service.py
+Unit tests for recommend_exercise service
 """
 
-
-from pathlib import Path
 import pytest
+from unittest.mock import MagicMock, patch
+
+from app.agents.exercise.service import recommend_exercise
+from app.core.exceptions import ExerciseAgentError
 
 
+@pytest.fixture
+def mock_db():
+    return MagicMock()
 
 
-from app.agents.exercise.recommendation import recommend_exercise
+@pytest.fixture
+def mock_metrics():
+    return {
+        "id": 10,
+        "heart_rate": 75,
+        "bp_systolic": 120,
+        "bp_diastolic": 80,
+        "spo2": 98,
+        "steps": 5000
+    }
 
 
-# -------------------------
-# 🚨 SAFETY TEST CASES
-# -------------------------
+# ---------------------------------------------------------
+# ✅ 1. Test NEW entry (save)
+# ---------------------------------------------------------
+@patch("app.agents.exercise.service.save_exercise_entry")
+@patch("app.agents.exercise.service.get_today_exercise_entry")
+@patch("app.agents.exercise.service.llm")
+@patch("app.agents.exercise.service.build_exercise_prompt")
+def test_recommend_exercise_new_entry(
+    mock_prompt, mock_llm, mock_get_today, mock_save, mock_db, mock_metrics
+):
+    """Test creating a new exercise recommendation"""
 
-def test_low_spo2_triggers_breathing_exercises():
-    result = recommend_exercise(
-        heart_rate=80,
-        spo2=92,
-        bp_systolic=120,
-        bp_diastolic=80,
-        steps=7000,
-        workout_duration_minutes=30
-    )
+    mock_prompt.return_value = "PROMPT"
 
-    assert result["intensity"] == "very_low"
-    assert "Low oxygen level detected" in result["warnings"]
-    assert "Breathing exercises" in result["plan"]
+    mock_llm.invoke.return_value = """
+    {
+        "intensity": "medium",
+        "plan": ["Walk 20 mins"],
+        "warnings": ["None"],
+        "recovery_advice": "Drink water"
+    }
+    """
 
+    mock_get_today.return_value = None
 
-def test_high_bp_triggers_low_intensity():
-    result = recommend_exercise(
-        heart_rate=85,
-        spo2=98,
-        bp_systolic=150,
-        bp_diastolic=95,
-        steps=7000,
-        workout_duration_minutes=30
-    )
+    mock_entry = MagicMock()
+    mock_entry.id = 1
+    mock_entry.created_at = "2026-01-01"
+    mock_save.return_value = mock_entry
 
-    assert result["intensity"] == "low"
-    assert "High blood pressure detected" in result["warnings"]
-    assert "Yoga" in result["plan"]
+    result = recommend_exercise(user_id=1, metrics=mock_metrics, db=mock_db)
 
-
-def test_high_heart_rate_triggers_rest():
-    result = recommend_exercise(
-        heart_rate=120,
-        spo2=98,
-        bp_systolic=120,
-        bp_diastolic=80,
-        steps=7000,
-        workout_duration_minutes=30
-    )
-
-    assert result["intensity"] == "rest"
-    assert "Elevated heart rate" in result["warnings"]
-    assert "Rest" in result["plan"]
+    assert result["id"] == 1
+    assert result["intensity"] == "medium"
+    assert result["plan"] == ["Walk 20 mins"]
+    mock_save.assert_called_once()
+    mock_get_today.assert_called_once()
 
 
-# -------------------------
-# 🏃 FITNESS LEVEL TESTS
-# -------------------------
+# ---------------------------------------------------------
+# ✅ 2. Test UPDATE existing entry
+# ---------------------------------------------------------
+@patch("app.agents.exercise.service.update_exercise_entry")
+@patch("app.agents.exercise.service.get_today_exercise_entry")
+@patch("app.agents.exercise.service.llm")
+@patch("app.agents.exercise.service.build_exercise_prompt")
+def test_recommend_exercise_update_entry(
+    mock_prompt, mock_llm, mock_get_today, mock_update, mock_db, mock_metrics
+):
+    """Test updating existing recommendation"""
 
-def test_sedentary_user_gets_moderate_plan():
-    result = recommend_exercise(
-        heart_rate=80,
-        spo2=98,
-        bp_systolic=120,
-        bp_diastolic=80,
-        steps=3000,
-        workout_duration_minutes=30
-    )
+    mock_prompt.return_value = "PROMPT"
 
-    assert result["intensity"] == "moderate"
-    assert "30-minute brisk walk" in result["plan"]
+    mock_llm.invoke.return_value = """
+    {
+        "intensity": "high",
+        "plan": ["Run 30 mins"],
+        "warnings": ["High HR"],
+        "recovery_advice": "Rest well"
+    }
+    """
 
+    existing_entry = MagicMock()
+    existing_entry.id = 2
+    mock_get_today.return_value = existing_entry
 
-def test_moderate_user_gets_strength_plan():
-    result = recommend_exercise(
-        heart_rate=80,
-        spo2=98,
-        bp_systolic=120,
-        bp_diastolic=80,
-        steps=8000,
-        workout_duration_minutes=30
-    )
+    updated_entry = MagicMock()
+    updated_entry.id = 2
+    updated_entry.created_at = "2026-01-01"
+    mock_update.return_value = updated_entry
 
-    assert result["intensity"] == "moderate_to_high"
-    assert "Strength training" in result["plan"]
+    result = recommend_exercise(user_id=1, metrics=mock_metrics, db=mock_db)
 
-
-def test_active_user_gets_maintenance_plan():
-    result = recommend_exercise(
-        heart_rate=80,
-        spo2=98,
-        bp_systolic=120,
-        bp_diastolic=80,
-        steps=12000,
-        workout_duration_minutes=30
-    )
-
-    assert result["intensity"] == "maintenance"
-    assert "HIIT (if energy level is good)" in result["plan"]
+    assert result["id"] == 2
+    assert result["intensity"] == "high"
+    mock_update.assert_called_once()
+    mock_get_today.assert_called_once()
 
 
-# -------------------------
-# ⏳ RECOVERY TEST
-# -------------------------
+# ---------------------------------------------------------
+# ✅ 3. Test fallback when LLM returns invalid JSON
+# ---------------------------------------------------------
+@patch("app.agents.exercise.service.save_exercise_entry")
+@patch("app.agents.exercise.service.get_today_exercise_entry")
+@patch("app.agents.exercise.service.llm")
+@patch("app.agents.exercise.service.build_exercise_prompt")
+def test_recommend_exercise_fallback(
+    mock_prompt, mock_llm, mock_get_today, mock_save, mock_db, mock_metrics
+):
+    """Test fallback plan when LLM response is invalid"""
 
-def test_overtraining_triggers_recovery_advice():
-    result = recommend_exercise(
-        heart_rate=80,
-        spo2=98,
-        bp_systolic=120,
-        bp_diastolic=80,
-        steps=8000,
-        workout_duration_minutes=75
-    )
+    mock_prompt.return_value = "PROMPT"
 
-    assert result["recovery_advice"] == "Consider a recovery or rest day tomorrow"
+    # Invalid JSON
+    mock_llm.invoke.return_value = "INVALID RESPONSE"
+
+    mock_get_today.return_value = None
+
+    mock_entry = MagicMock()
+    mock_entry.id = 3
+    mock_entry.created_at = "2026-01-01"
+    mock_save.return_value = mock_entry
+
+    result = recommend_exercise(user_id=1, metrics=mock_metrics, db=mock_db)
+
+    assert result["intensity"] == "low"   # fallback default
+    assert "plan" in result
+    assert "warnings" in result
+
+
+# ---------------------------------------------------------
+# ✅ 4. Test exception handling
+# ---------------------------------------------------------
+@patch("app.agents.exercise.service.build_exercise_prompt")
+def test_recommend_exercise_exception(mock_prompt, mock_db):
+    """Test exception handling"""
+
+    mock_prompt.side_effect = Exception("Prompt failed")
+
+    with pytest.raises(ExerciseAgentError):
+        recommend_exercise(user_id=1, metrics=None, db=mock_db)

@@ -24,13 +24,14 @@ logger = setup_logger(__name__)
 # Create Health Metric
 # ---------------------------------------------------------
 
-def create_health_metric(db: Session, data: HealthMetricsCreate):
+def create_health_metric(db: Session, data: HealthMetricsCreate,user_id:int):
     """
     Insert a new health metrics entry.
     """
 
     metric = HealthMetrics(
-        user_id=data.user_id,
+
+        user_id=user_id,
         heart_rate=data.heart_rate,
         spo2=data.spo2,
         bp_systolic=data.bp_systolic,
@@ -70,26 +71,65 @@ def get_health_metric_by_id(db: Session, metric_id: int):
 # Get Today's Health Metrics
 # ---------------------------------------------------------
 
+
+
+
 def get_today_health_metrics(db: Session, user_id: int):
     """
     Retrieve the latest health metric for today for a user.
     Returns a single record even if multiple entries exist.
     """
 
-    today = date.today()
-    start_of_day = datetime.combine(today, datetime.min.time())
-    end_of_day = start_of_day + timedelta(days=1)
+    logger.info("Fetching today's health metrics", extra={"user_id": user_id})
 
-    return (
-        db.query(HealthMetrics)
-        .filter(
-            HealthMetrics.user_id == user_id,
-            HealthMetrics.timestamp >= start_of_day,
-            HealthMetrics.timestamp < end_of_day
+    try:
+        today = date.today()
+        start_of_day = datetime.combine(today, datetime.min.time())
+        end_of_day = start_of_day + timedelta(days=1)
+
+        logger.debug(
+            "Calculated date range for today's metrics",
+            extra={
+                "user_id": user_id,
+                "start_of_day": start_of_day.isoformat(),
+                "end_of_day": end_of_day.isoformat()
+            }
         )
-        .order_by(HealthMetrics.timestamp.desc())  # latest first
-        .first()  # fetch only one entry
-    )
+
+        metric = (
+            db.query(HealthMetrics)
+            .filter(
+                HealthMetrics.user_id == user_id,
+                HealthMetrics.timestamp >= start_of_day,
+                HealthMetrics.timestamp < end_of_day
+            )
+            .order_by(HealthMetrics.timestamp.desc())
+            .first()
+        )
+
+        if metric:
+            logger.info(
+                "Health metric found for today",
+                extra={
+                    "user_id": user_id,
+                    "metric_id": metric.id,
+                    "timestamp": metric.timestamp.isoformat()
+                }
+            )
+        else:
+            logger.warning(
+                "No health metrics found for today",
+                extra={"user_id": user_id}
+            )
+
+        return metric
+
+    except Exception as e:
+        logger.exception(
+            "Error retrieving today's health metrics",
+            extra={"user_id": user_id}
+        )
+        raise
 
 # ---------------------------------------------------------
 # Get User Health History

@@ -12,8 +12,12 @@ from sqlalchemy.orm import Session
 from typing import List
 from sqlalchemy import func
 from datetime import datetime, timedelta
+from app.agents.exercise.agent import exercise_agent
+from app.orchestrator.state import OrchestratorState
+from app.crud.user_profile import get_profile
 
 from app.database import get_db
+from app.dependencies import get_current_user
 from app.schemas.health import (
     HealthMetricsCreate,
     HealthMetricsUpdate,
@@ -28,7 +32,7 @@ from app.crud.health import (
     update_health_metric,
     delete_health_metric
 )
-
+from app.models.user import User
 from app.models.health import HealthMetrics
 
 from app.core.logging_config import setup_logger
@@ -52,14 +56,66 @@ router = APIRouter(
 )
 def create_metric(
     data: HealthMetricsCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Insert a new health metrics entry.
     """
+    user_id = current_user.user_id
+    print("inside health post",user_id)
+    metric = create_health_metric(db, data,user_id)
 
-    metric = create_health_metric(db, data)
+    # Convert SQLAlchemy model to dict
+    metrics_dict = {
+        "id":metric.id,
+        "heart_rate": metric.heart_rate,
+        "bp_systolic": metric.bp_systolic,
+        "bp_diastolic": metric.bp_diastolic,
+        "sp02": metric.spo2,
+       
+        # add any other fields your prompt expects
+    }
 
+    # Build minimal state just for exercise agent
+    profile = get_profile(db, user_id)
+    state: OrchestratorState = {
+        "user_profile": {
+            "user_id": user_id,
+            "calories": profile.calories,
+            "diet": profile.diet,
+            "goal": profile.goal,
+            "region": profile.region,
+            "restrictions": profile.restrictions or [],
+            "meal_type": profile.meal_type
+        },
+        "db": db,
+        "health_data": metrics_dict,
+    }
+
+    try:
+        # Invoke only the exercise agent
+        updated_state = exercise_agent(state)
+
+        # Save updated state in memory or orchestrator store if you have one
+        orchestrator_store[user_id] = updated_state
+
+    except Exception as e:
+        print("Exercise Agent failed:", e)
+        # Decide whether to fail request or ignore
+        # pass
+
+   
+
+   
+    # -----------------------------
+    # 4️⃣ Return saved metric
+    # -----------------------------
+    if not metric:
+        raise HTTPException(
+            status_code=404,
+            detail="No health metrics found for today"
+        )
     return metric
 
 
@@ -110,6 +166,12 @@ def get_today_metrics(
     """
 
     metrics = get_today_health_metrics(db, user_id)
+
+    if metrics is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No health metrics found for today"
+        )
 
     return metrics
 
@@ -208,14 +270,26 @@ def get_last_week_health(user_id: int, db: Session = Depends(get_db)):
     """
     start_date = datetime.utcnow() - timedelta(days=7)
 
-    rows = db.query(HealthMetrics).filter(
-        HealthMetrics.user_id == user_id,
-        HealthMetrics.timestamp >= start_date
-    ).order_by(HealthMetrics.timestamp).all()
+    # Current date
+    today = datetime.utcnow()
 
+    # Find start of current week (Monday)
+    start_of_current_week = today - timedelta(days=today.weekday())
+
+    # Start of previous week (7 days before start of current week)
+    start_of_prev_week = start_of_current_week - timedelta(days=7)
+
+    # End of previous week (1 day before start of current week)
+    end_of_prev_week = start_of_current_week - timedelta(seconds=1)
+
+    rows = db.query(HealthMetrics).filter(
+    HealthMetrics.user_id == user_id,
+    HealthMetrics.timestamp >= start_of_prev_week,
+    HealthMetrics.timestamp <= end_of_prev_week
+).order_by(HealthMetrics.timestamp.asc()).all()
     result = [
         {
-            "timestamp": row.timestamp,
+            "timestamp": row.timestamp.isoformat(),
             "heart_rate": row.heart_rate,
             "spo2": row.spo2,
             "bp_systolic": row.bp_systolic,
@@ -236,11 +310,11 @@ def get_last_month_health(user_id: int, db: Session = Depends(get_db)):
     rows = db.query(HealthMetrics).filter(
         HealthMetrics.user_id == user_id,
         HealthMetrics.timestamp >= start_date
-    ).order_by(HealthMetrics.timestamp).all()
+    ).order_by(HealthMetrics.timestamp.asc()).all()
 
     result = [
         {
-            "timestamp": row.timestamp,
+            "timestamp": row.timestamp.isoformat(),
             "heart_rate": row.heart_rate,
             "spo2": row.spo2,
             "bp_systolic": row.bp_systolic,

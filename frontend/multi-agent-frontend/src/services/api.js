@@ -1,4 +1,11 @@
-import { API_ENDPOINTS,AUTH_API, } from "../api/endpoints";
+import { API_ENDPOINTS, 
+  AUTH_API, 
+  HEALTH_API,
+   MEAL_APPROVAL_API,
+    EXERCISE_API,
+    JOURNAL_API,
+   } from "../api/endpoints";
+   import toast from "react-hot-toast";
 
 
 export const getAuthHeaders = () => {
@@ -8,6 +15,27 @@ export const getAuthHeaders = () => {
     "Content-Type": "application/json",
     Authorization: token ? `Bearer ${token}` : "",
   };
+};
+
+const getUserIdFromToken = () => {
+  const token = localStorage.getItem("token");
+  if (!token) return null;
+
+  try {
+    const payloadPart = token.split(".")[1];
+    if (!payloadPart) return null;
+
+    const base64 = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+    const payloadJson = atob(padded);
+    const payload = JSON.parse(payloadJson);
+
+    const sub = payload?.sub;
+    const asNum = typeof sub === "string" ? Number(sub) : Number(sub);
+    return Number.isFinite(asNum) ? asNum : null;
+  } catch {
+    return null;
+  }
 };
 
 export const getAuthHeadersform = () => {
@@ -59,10 +87,6 @@ export const getMealPlan = async () => {
     headers: getAuthHeaders(),
   });
 
-  if (!response.ok) {
-    throw new Error("Failed to fetch meal plan");
-  }
-
   if (response.status === 401) {
     localStorage.removeItem("token");
     window.location.reload();  // forces login again
@@ -71,14 +95,14 @@ export const getMealPlan = async () => {
   if (!response.ok) {
     throw new Error("Failed to fetch meal plan");
   }
-
+  console.log("inside getMealplan")
   return response.json();
 };
 
 export const approveMealPlan = async (mealPlanId, shopNumber) => {
   try {
     const response = await fetch(
-      API_ENDPOINTS.MEAL_APPROVAL_API.APPROVE_MEAL_PLAN(mealPlanId, shopNumber),
+      MEAL_APPROVAL_API.APPROVE_MEAL_PLAN(mealPlanId, shopNumber),
       {
         method: "POST",
         headers: getAuthHeaders(), // includes JWT token
@@ -102,7 +126,9 @@ export const approveMealPlan = async (mealPlanId, shopNumber) => {
     const data = await response.json();
 
     // Show API message in alert
-    alert(data.message || "Operation completed");
+    // alert(data.message || "Operation completed");
+    toast.success(data.message || "Operation completed")
+    to
 
     return data;
 
@@ -113,7 +139,7 @@ export const approveMealPlan = async (mealPlanId, shopNumber) => {
   }
 };
 export const getRecommendations = async () => {
-  const response = await fetch(API_ENDPOINTS.EXERCISE_API.GET_RECOMMENDATIONS, {
+  const response = await fetch(EXERCISE_API.GET_RECOMMENDATIONS, {
     method: "GET",
     headers: getAuthHeaders(),
   });
@@ -135,7 +161,7 @@ export const getRecommendations = async () => {
 };
 
 export const getJournal = async () => {
-  const response = await fetch(API_ENDPOINTS.JOURNAL_API.GET_JOURNAL, {
+  const response = await fetch(JOURNAL_API.GET_JOURNAL, {
     method: "GET",
     headers: getAuthHeaders(),
   });
@@ -158,7 +184,7 @@ export const getJournal = async () => {
 
 export const updateMealPlan = async (user_id, payload) => {
   try {
-    const response = await fetch(API_ENDPOINTS.PROFILE_API.UPDATE_MEAL_PLAN(user_id), {
+    const response = await fetch(API_ENDPOINTS.UPDATE_MEAL_PLAN(user_id), {
       method: "PUT", // Use PUT as per API spec
       headers: {
         "Content-Type": "application/json",
@@ -180,6 +206,7 @@ export const updateMealPlan = async (user_id, payload) => {
     if (!response.ok) {
       throw new Error(`HTTP error! Status: ${response.status}`);
     }
+    getMealPlan();
 
     return await response.json();
   } catch (error) {
@@ -190,20 +217,32 @@ export const updateMealPlan = async (user_id, payload) => {
 
 export const HealthDailyUpdate = async (payload) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/health-data`, {
+    const response = await fetch(HEALTH_API.CREATE_HEALTH_DATA, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: 
+      
+        getAuthHeaders()
+
+      ,
       body: JSON.stringify(payload),
     });
 
+    const data = await response.json().catch(() => ({}));
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData?.detail || `Server error ${response.status}`);
+      let message = "Unknown error";
+
+      if (Array.isArray(data?.detail)) {
+        message = data.detail.map((e) => e.msg).join(", ");
+      } else if (typeof data?.detail === "string") {
+        message = data.detail;
+      } else {
+        message = `Server error ${response.status}`;
+      }
+
+      throw new Error(message);
     }
 
-    const data = await response.json();
     return data;
   } catch (error) {
     console.error("HealthDailyUpdate error:", error);
@@ -211,3 +250,101 @@ export const HealthDailyUpdate = async (payload) => {
   }
 };
 
+
+
+export const getHealth = async () => {
+  const userId = getUserIdFromToken();
+  if (!userId) {
+    throw new Error("Missing user id (please login again)");
+  }
+
+  const response = await fetch(HEALTH_API.GET_TODAY_HEALTH_METRICS(userId), {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  console.log("Response status:", response.status);
+
+  
+
+  if (response.status === 401) {
+    localStorage.removeItem("token");
+    window.location.reload();  // forces login again
+  }
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch health metrics");
+  }
+   const data = await response.json();
+  return data;
+};
+
+export const getLastWeekHealth = async (userIdOverride) => {
+  const userId = userIdOverride ?? getUserIdFromToken();
+  if (!userId) {
+    throw new Error("Missing user id (please login again)");
+  }
+
+  const response = await fetch(HEALTH_API.GET_LAST_WEEK_HEALTH(userId), {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  if (response.status === 401) {
+    localStorage.removeItem("token");
+    window.location.reload(); // forces login again
+  }
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch last week health metrics");
+  }
+
+  return response.json();
+};
+
+export const getLastMonthHealth = async (userIdOverride) => {
+  const userId = userIdOverride ?? getUserIdFromToken();
+  if (!userId) {
+    throw new Error("Missing user id (please login again)");
+  }
+
+  const response = await fetch(HEALTH_API.GET_LAST_MONTH_HEALTH(userId), {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  if (response.status === 401) {
+    localStorage.removeItem("token");
+    window.location.reload(); // forces login again
+  }
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch last month health metrics");
+  }
+
+  return response.json();
+};
+
+// src/services/sttService.js
+export const transcribeAudio = async (audioBlob) => {
+  try {
+    const formData = new FormData();
+    formData.append("file", audioBlob, "recording.mp4");
+
+    const response = await fetch(JOURNAL_API.TRANSCRIBE_AUDIO, {
+      method: "POST",
+      body: formData,
+      headers: getAuthHeadersform(), // your auth headers function
+    });
+
+    if (!response.ok) {
+      throw new Error(`STT API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.text; // return only the transcription
+  } catch (error) {
+    console.error("Error in transcribeAudio:", error);
+    throw error;
+  }
+};

@@ -94,8 +94,8 @@ def process_audio_journal(
                 journal_id=today_entry.id,
                 journal_text=journal_text,
                 llm_response=llm_response,
-                language=language,
-                duration=duration
+                language=language
+              
             )
             journal_entry = updated_entry
         else:
