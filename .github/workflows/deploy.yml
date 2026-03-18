@@ -66,7 +66,7 @@ jobs:
           file: backend/Dockerfile
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/curamyn-backend:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/alma_backend:latest
 
 # =========================
 # DEPLOY TO EC2
