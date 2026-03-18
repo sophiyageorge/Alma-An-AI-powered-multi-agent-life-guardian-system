@@ -15,9 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
 
-    env:
-      CURAMYN_ENV: test
-      PYTHONPATH: .
+   
 
      
 
