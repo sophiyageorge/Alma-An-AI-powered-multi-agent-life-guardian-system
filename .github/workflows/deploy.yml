@@ -10,9 +10,22 @@ jobs:
 # =========================
 # TEST JOB
 # =========================
+  # ====================================
+#  TEST JOB
+# ====================================
   test:
     name: Run Tests
     runs-on: ubuntu-latest
+
+
+    env:
+      ALMA_ENV: test
+      PYTHONPATH: .
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      TWILIO_ACCOUNT_SID: ${{secrets.TWILIO_ACCOUNT_SID}}
+      TWILIO_AUTH_TOKEN: ${{secrets.TWILIO_AUTH_TOKEN}}
+      TWILIO_PHONE_NUMBER: ${{secrets.TWILIO_PHONE_NUMBER}}
+
 
 
    
@@ -29,8 +42,8 @@ jobs:
       - run: |
           pip install -r backend/requirements.txt
 
-
-      - run: pytest -v
+      - name: Run pytest
+        run: pytest -v
 
 # =========================
 # BUILD BACKEND
