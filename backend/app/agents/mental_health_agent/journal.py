@@ -106,8 +106,8 @@ def process_audio_journal(
                 user_id=user_id,
                 journal_text=journal_text,
                 llm_response=llm_response,
-                language=language,
-                duration=duration
+                language=language
+                # duration=duration
             )
 
         # -------------------------------

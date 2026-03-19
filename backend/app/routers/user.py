@@ -7,7 +7,7 @@ Handles:
 - Initializing orchestrator workflow after login
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status,BackgroundTasks
 from sqlalchemy.orm import Session
 
 # Schemas
@@ -48,6 +48,107 @@ graph = build_graph()
 
 # Logger
 logger = setup_logger(__name__)
+
+
+def run_orchestrator(user_id: int, db: Session):
+        """
+        Run the orchestrator workflow for a given user.
+
+        Args:
+            user_id (int): ID of the authenticated user.
+            db (Session): Database session.
+
+        Raises:
+            HTTPException: If orchestrator execution fails.
+        """
+
+        # ---------------------------------------------------------
+        # Fetch User Profile
+        # ---------------------------------------------------------
+
+        profile = get_profile(db,user_id)
+
+        logger.info("Profile fetched", user_id=user_id)
+
+        # ---------------------------------------------------------
+        # Build User Profile State
+        # ---------------------------------------------------------
+
+        if profile:
+            user_profile = {
+                "user_id": user_id,
+                "calories": profile.calories,
+                "diet": profile.diet,
+                "goal": profile.goal,
+                "region": profile.region,
+                "restrictions": profile.restrictions or [],
+                "meal_type": profile.meal_type
+            }
+
+            logger.info(
+                f"Using stored profile for user_id={user_id}"
+            )
+
+            # ---------------------------------------------------------
+            # Initialize Orchestrator State
+            # ---------------------------------------------------------
+
+            state: OrchestratorState = {
+                # "user_id": db_user.user_id,
+                "user_profile": user_profile,
+                "db": db,
+                "health_data": None,
+                "journal_text": None,
+                "meal_plan_approved": False,
+                "exercise_plan_approved": False,
+                "anomaly_detected": False,
+                "compliance_passed": True
+            }
+
+            logger.info(
+                f"Orchestrator state initialized for user_id={user_id}"
+            )
+
+            logger.info(f"Initial orchestrator state for user_id={user_id}: {state}")
+
+            # ---------------------------------------------------------
+            # Invoke LangGraph Orchestrator
+            # ---------------------------------------------------------
+
+            try:
+
+                logger.info(
+                    f"Invoking orchestrator graph for user_id={user_id}"
+                )
+
+                final_state = graph.invoke(state)
+
+                logger.info(
+                    f"Orchestrator completed successfully for user_id={user_id}"
+                )
+
+                
+        
+            except Exception as e:
+
+                logger.exception(
+                    f"Orchestrator execution failed for user_id={db_user.user_id}"
+                )
+
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to initialize wellness workflow"
+                )
+
+                # 6️⃣ Save state in memory
+            orchestrator_store[db_user.user_id] = final_state
+        #     orchestrator_store[db_user.user_id] = {
+        #     "health_metrics": None,
+        #     "nutrition_plan": None,
+        #     "exercise_plan": None,
+        #     "mental_health": None
+        # }
+            logger.info(f"Final orchestrator state for user_id {db_user.user_id}")
 
 
 # ---------------------------------------------------------
@@ -107,7 +208,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
 # ---------------------------------------------------------
 
 @router.post("/login", response_model=Token)
-def login(user: UserLogin, db: Session = Depends(get_db)):
+def login(user: UserLogin,background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """
     Authenticate user and trigger orchestrator workflow.
     """
@@ -140,115 +241,20 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     logger.info(f"Access token generated for user_id={db_user.user_id}")
 
     # ---------------------------------------------------------
-    # Fetch User Profile
+    # Add orchestrator workflow as background task
     # ---------------------------------------------------------
 
-    profile = get_profile(db, db_user.user_id)
-
-    logger.info(f"Profile fetched for user_id={db_user.user_id}")
-
-    # ---------------------------------------------------------
-    # Build User Profile State
-    # ---------------------------------------------------------
-
-    if profile:
-        user_profile = {
-            "user_id": db_user.user_id,
-            "calories": profile.calories,
-            "diet": profile.diet,
-            "goal": profile.goal,
-            "region": profile.region,
-            "restrictions": profile.restrictions or [],
-            "meal_type": profile.meal_type
-        }
-
-        logger.info(
-            f"Using stored profile for user_id={db_user.user_id}"
-        )
-
-    else:
-        logger.warning(
-            f"No profile found for user_id={db_user.user_id}. Using fallback profile"
-        )
-
-        user_profile = {
-            "user_id": db_user.user_id,
-            "calories": 1800,
-            "diet": "vegetarian",
-            "goal": "weight loss",
-            "region": "Kerala",
-            "restrictions": ["no dairy"],
-            "meal_type": "home food"
-        }
-
-    # ---------------------------------------------------------
-    # Initialize Orchestrator State
-    # ---------------------------------------------------------
-
-    state: OrchestratorState = {
-        # "user_id": db_user.user_id,
-        "user_profile": user_profile,
-        "db": db,
-        "health_data": None,
-        "journal_text": None,
-        "meal_plan_approved": False,
-        "exercise_plan_approved": False,
-        "anomaly_detected": False,
-        "compliance_passed": True
-    }
-
-    logger.info(
-        f"Orchestrator state initialized for user_id={db_user.user_id}"
-    )
-
-    logger.info(f"Initial orchestrator state for user_id={db_user.user_id}: {state}")
-
-    # ---------------------------------------------------------
-    # Invoke LangGraph Orchestrator
-    # ---------------------------------------------------------
-
-    try:
-
-        logger.info(
-            f"Invoking orchestrator graph for user_id={db_user.user_id}"
-        )
-
-        final_state = graph.invoke(state)
-
-        logger.info(
-            f"Orchestrator completed successfully for user_id={db_user.user_id}"
-        )
-
-        
- 
-    except Exception as e:
-
-        logger.exception(
-            f"Orchestrator execution failed for user_id={db_user.user_id}"
-        )
-
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to initialize wellness workflow"
-        )
-
-           # 6️⃣ Save state in memory
-    orchestrator_store[db_user.user_id] = final_state
-#     orchestrator_store[db_user.user_id] = {
-#     "health_metrics": None,
-#     "nutrition_plan": None,
-#     "exercise_plan": None,
-#     "mental_health": None
-# }
-    logger.info(f"Final orchestrator state for user_id {db_user.user_id}")
-
-
+    background_tasks.add_task(run_orchestrator, db_user.user_id, db)
 
     # ---------------------------------------------------------
     # Return JWT Token
     # ---------------------------------------------------------
-
     return {
         "access_token": access_token,
         "token_type": "bearer"
     }
+
+
+        
+
+        
