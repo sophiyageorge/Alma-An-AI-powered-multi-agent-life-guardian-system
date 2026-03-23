@@ -89,9 +89,18 @@ jobs:
 
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/alma_backend:latest
 
-            docker compose pull
-            docker compose down
-            docker compose up -d
+            # Stop and remove existing container (if any)
+            if [ $(docker ps -aq -f name=alma_backend) ]; then
+              docker stop alma_backend
+              docker rm alma_backend
+            fi
+
+            # Run container with volume mount for database
+            docker run -d \
+            --name alma_backend \
+            -p 8000:8000 \
+            -v /home/ubuntu/data:/app/data \
+            ${{ secrets.DOCKERHUB_USERNAME }}/alma_backend:latest
 
             echo "Deployed successfully"
 
