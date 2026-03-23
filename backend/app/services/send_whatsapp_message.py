@@ -36,7 +36,7 @@ def send_whatsapp_message(to_number: str, message: str) -> str:
             client = Client(account_sid, auth_token)
 
             from_whatsapp = f"whatsapp:{phone_number}"
-            to_whatsapp = f"whatsapp:{to_number}"
+            to_whatsapp = f"whatsapp:+{to_number}"
             message = message.strip()
 
             sent_msg = client.messages.create(

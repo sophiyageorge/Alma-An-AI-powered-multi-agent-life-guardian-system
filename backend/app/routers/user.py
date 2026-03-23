@@ -7,7 +7,7 @@ Handles:
 - Initializing orchestrator workflow after login
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status,BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 
 # Schemas
@@ -21,9 +21,7 @@ from app.crud.user_profile import get_profile
 
 # Database
 from app.database import get_db
-
-# Models
-from app.models.user_profile import UserProfile
+from app.database import SessionLocal
 
 # JWT
 from utils.jwt import create_access_token
@@ -31,7 +29,7 @@ from utils.jwt import create_access_token
 # Orchestrator
 from app.orchestrator.state import OrchestratorState
 from app.orchestrator.graph import build_graph
-from app.orchestrator.store import orchestrator_store
+
 
 # Logging
 from app.core.logging_config import setup_logger
@@ -44,38 +42,40 @@ from app.core.logging_config import setup_logger
 router = APIRouter()
 
 # Build LangGraph orchestrator
-graph = build_graph()
+# graph = build_graph()
 
 # Logger
 logger = setup_logger(__name__)
 
 
-def run_orchestrator(user_id: int, db: Session):
-        """
-        Run the orchestrator workflow for a given user.
+def run_orchestrator(user_id: int):
+    """
+    Run the orchestrator workflow for a given user.
 
-        Args:
-            user_id (int): ID of the authenticated user.
-            db (Session): Database session.
+    Args:
+        user_id (int): ID of the authenticated user.
+        db (Session): Database session.
 
-        Raises:
-            HTTPException: If orchestrator execution fails.
-        """
+    Raises:
+        HTTPException: If orchestrator execution fails.
+    """
 
-        # ---------------------------------------------------------
-        # Fetch User Profile
-        # ---------------------------------------------------------
+    db = SessionLocal()   # ✅ create new DB session
 
-        profile = get_profile(db,user_id)
+    # ---------------------------------------------------------
+    # Fetch User Profile
+    # ---------------------------------------------------------
 
-        logger.info("Profile fetched", user_id=user_id)
+    profile = get_profile(db,user_id)
 
-        # ---------------------------------------------------------
-        # Build User Profile State
-        # ---------------------------------------------------------
+    logger.info(f"Profile fetched for user_id={user_id}")
 
-        if profile:
-            user_profile = {
+    # ---------------------------------------------------------
+    # Build User Profile State
+    # ---------------------------------------------------------
+
+    if profile:
+        user_profile = {
                 "user_id": user_id,
                 "calories": profile.calories,
                 "diet": profile.diet,
@@ -85,7 +85,7 @@ def run_orchestrator(user_id: int, db: Session):
                 "meal_type": profile.meal_type
             }
 
-            logger.info(
+        logger.info(
                 f"Using stored profile for user_id={user_id}"
             )
 
@@ -93,7 +93,7 @@ def run_orchestrator(user_id: int, db: Session):
             # Initialize Orchestrator State
             # ---------------------------------------------------------
 
-            state: OrchestratorState = {
+        state: OrchestratorState = {
                 # "user_id": db_user.user_id,
                 "user_profile": user_profile,
                 "db": db,
@@ -105,51 +105,41 @@ def run_orchestrator(user_id: int, db: Session):
                 "compliance_passed": True
             }
 
-            logger.info(
+        logger.info(
                 f"Orchestrator state initialized for user_id={user_id}"
             )
 
-            logger.info(f"Initial orchestrator state for user_id={user_id}: {state}")
+        logger.info(f"Initial orchestrator state for user_id={user_id}: {state}")
 
-            # ---------------------------------------------------------
-            # Invoke LangGraph Orchestrator
-            # ---------------------------------------------------------
+        # ---------------------------------------------------------
+        # Invoke LangGraph Orchestrator
+        # ---------------------------------------------------------
 
-            try:
+        try:
 
-                logger.info(
+            logger.info(
                     f"Invoking orchestrator graph for user_id={user_id}"
                 )
+            
+            # Build LangGraph orchestrator
+            graph = build_graph()
 
-                final_state = graph.invoke(state)
+            final_state = graph.invoke(state)
 
-                logger.info(
+            logger.info(
                     f"Orchestrator completed successfully for user_id={user_id}"
                 )
 
                 
         
-            except Exception as e:
+        except Exception as e:
 
-                logger.exception(
-                    f"Orchestrator execution failed for user_id={db_user.user_id}"
-                )
+            logger.exception("Orchestrator failed", extra={"user_id": user_id})
 
-                raise HTTPException(
+            raise HTTPException(
                     status_code=500,
                     detail="Failed to initialize wellness workflow"
                 )
-
-                # 6️⃣ Save state in memory
-            orchestrator_store[db_user.user_id] = final_state
-        #     orchestrator_store[db_user.user_id] = {
-        #     "health_metrics": None,
-        #     "nutrition_plan": None,
-        #     "exercise_plan": None,
-        #     "mental_health": None
-        # }
-            logger.info(f"Final orchestrator state for user_id {db_user.user_id}")
-
 
 # ---------------------------------------------------------
 # User Registration Endpoint
@@ -244,7 +234,7 @@ def login(user: UserLogin,background_tasks: BackgroundTasks, db: Session = Depen
     # Add orchestrator workflow as background task
     # ---------------------------------------------------------
 
-    background_tasks.add_task(run_orchestrator, db_user.user_id, db)
+    background_tasks.add_task(run_orchestrator, db_user.user_id)
 
     # ---------------------------------------------------------
     # Return JWT Token

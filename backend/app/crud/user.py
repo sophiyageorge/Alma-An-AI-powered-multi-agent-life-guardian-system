@@ -72,7 +72,8 @@ def create_user(db: Session, user) -> User:
             email=user.email,
             password_hash=hashed_password,
             date_of_birth=user.date_of_birth,
-            gender=user.gender
+            gender=user.gender,
+            phone=user.phone
         )
 
         db.add(db_user)
@@ -110,3 +111,28 @@ def verify_password(plain_password: str, hashed_password: bytes) -> bool:
     else:
         logger.warning("Password verification failed")
     return result
+
+# --------------------------
+# Fetch Phone by User ID
+# --------------------------
+def get_phone_by_user_id(db: Session, user_id: int) -> str | None:
+    """
+    Retrieve phone number for a given user_id.
+
+    Args:
+        db (Session): SQLAlchemy DB session
+        user_id (int): User ID
+
+    Returns:
+        str | None: Phone number if user exists, else None
+    """
+    user = db.query(User).filter(User.user_id == user_id).first()
+
+    if user:
+        logger.info(f"Phone fetched for user_id={user_id}")
+        return user.phone
+    else:
+        logger.warning(f"No user found with user_id={user_id}")
+        return None
+
+

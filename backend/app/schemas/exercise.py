@@ -24,10 +24,10 @@ class ExerciseEntryResponse(BaseModel):
 
     id: int
     user_id: int
-    heart_rate: Optional[int]
-    spo2: Optional[int]
-    bp_systolic: Optional[int]
-    bp_diastolic: Optional[int]
+    # heart_rate: Optional[int]
+    # spo2: Optional[int]
+    # bp_systolic: Optional[int]
+    # bp_diastolic: Optional[int]
     
 
     llm_response: Optional[str]
@@ -42,39 +42,39 @@ class ExerciseEntryResponse(BaseModel):
 
     model_config = {"from_attributes": True}
 
-    @classmethod
-    def from_orm_with_json(cls, entry):
-        """
-        Convert SQLAlchemy ExerciseEntry to Pydantic schema,
-        deserializing JSON string fields (plan, warnings) into lists.
-        """
-        plan = []
-        warnings = []
-        if entry.plan:
-            try:
-                plan = json.loads(entry.plan)
-            except Exception:
-                plan = []
+    # @classmethod
+    # def from_orm_with_json(cls, entry):
+    #     """
+    #     Convert SQLAlchemy ExerciseEntry to Pydantic schema,
+    #     deserializing JSON string fields (plan, warnings) into lists.
+    #     """
+    #     plan = []
+    #     warnings = []
+    #     if entry.plan:
+    #         try:
+    #             plan = json.loads(entry.plan)
+    #         except Exception:
+    #             plan = []
 
-        if entry.warnings:
-            try:
-                warnings = json.loads(entry.warnings)
-            except Exception:
-                warnings = []
+    #     if entry.warnings:
+    #         try:
+    #             warnings = json.loads(entry.warnings)
+    #         except Exception:
+    #             warnings = []
 
-        return cls(
-            id=entry.id,
-            user_id=entry.user_id,
-            heart_rate=entry.heart_rate,
-            spo2=entry.spo2,
-            bp_systolic=entry.bp_systolic,
-            bp_diastolic=entry.bp_diastolic,
-            steps=entry.steps,
-            workout_duration_minutes=entry.workout_duration_minutes,
-            llm_response=entry.llm_response,
-            intensity=entry.intensity,
-            plan=plan,
-            warnings=warnings,
-            recovery_advice=entry.recovery_advice,
-            date_created=entry.date_created
-        )
+    #     return cls(
+    #         id=entry.id,
+    #         user_id=entry.user_id,
+    #         heart_rate=entry.heart_rate,
+    #         spo2=entry.spo2,
+    #         bp_systolic=entry.bp_systolic,
+    #         bp_diastolic=entry.bp_diastolic,
+    #         steps=entry.steps,
+    #         workout_duration_minutes=entry.workout_duration_minutes,
+    #         llm_response=entry.llm_response,
+    #         intensity=entry.intensity,
+    #         plan=plan,
+    #         warnings=warnings,
+    #         recovery_advice=entry.recovery_advice,
+    #         date_created=entry.date_created
+    #     )

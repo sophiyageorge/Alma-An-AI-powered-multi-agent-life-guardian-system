@@ -55,7 +55,7 @@ class GroqLLM:
         max_tokens (int): Maximum tokens to generate.
     """
 
-    def __init__(self, model: str = "llama-3.1-8b-instant", temperature: float = 0.3, max_tokens: int = 2048):
+    def __init__(self, model: str = "llama-3.1-8b-instant", temperature: float = 0.3, max_tokens: int = 8000):
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens

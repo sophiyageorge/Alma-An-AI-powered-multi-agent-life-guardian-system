@@ -87,11 +87,14 @@ def nutrition_agent(state: OrchestratorState) -> OrchestratorState:
             "calories_per_day": plan.calories,
             "diet": plan.diet,
             "region": plan.region,
+            "grocery_list":[],
             "restrictions": plan.restrictions,
             "goal": plan.goal,
             "meal_plan_text": plan.meal_plan_text,
             "is_approved": plan.is_approved,
         }
+
+    
 
         # Save in global orchestrator_store for quick access
         if user_id not in orchestrator_store:

@@ -44,6 +44,14 @@ class User(Base):
     User's email used for authentication.
     Indexed for fast lookup during login.
     """
+    # ---------------------------------------------------------
+    # Contact Information
+    # ---------------------------------------------------------
+    phone = Column(String, unique=True, nullable=True, index=True)
+    """
+    Optional phone number for the user.
+    Can be used for OTP, contact, or personalized notifications.
+    """
 
     password_hash = Column(String, nullable=False)
     """

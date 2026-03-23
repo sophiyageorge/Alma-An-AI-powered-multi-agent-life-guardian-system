@@ -10,6 +10,7 @@ const AuthModel = ({ isOpen, onClose, setIsAuthenticated }) => {
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [gender, setGender] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [mode, setMode] = useState("signin");
   const navigate = useNavigate()
   const [loading,setLoading] = useState(false)
@@ -28,6 +29,7 @@ const AuthModel = ({ isOpen, onClose, setIsAuthenticated }) => {
       dateOfBirth,
       gender,
       password,
+      phone
     });
 
     if (!response.ok) {
@@ -58,6 +60,7 @@ const AuthModel = ({ isOpen, onClose, setIsAuthenticated }) => {
     }
   } catch (error) {
     console.error("Auth error:", error);
+    toast.error('Try Again')
   }
 finally{
    setLoading(false)
@@ -88,7 +91,8 @@ finally{
               className="border p-2 rounded"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              required /><input
+              required />
+              <input
                 type="date"
                 className="border p-2 rounded"
                 value={dateOfBirth}
@@ -102,10 +106,20 @@ finally{
                 <option value="">Select Gender</option>
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
-              </select></>
+              </select>
+                 <input
+            type="text"
+            placeholder="Phone Number"
+            className="border p-2 rounded"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            required
+          />
+              </>
+              
 
             )}
-         
+       
           <input
             type="password"
             placeholder="Password"

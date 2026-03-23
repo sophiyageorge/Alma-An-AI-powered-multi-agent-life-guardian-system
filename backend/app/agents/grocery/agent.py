@@ -1,108 +1,95 @@
-from typing import Optional
+from typing import Optional, List
 from sqlalchemy.orm import Session
-from app.orchestrator.state import OrchestratorState
 from app.llm.llm_client import llm
 from app.core.logging_config import setup_logger
 from app.services.send_whatsapp_message import send_whatsapp_message
-from app.core.exceptions import GroceryAgentError, NutritionAgentError
-from app.crud.weekly_meal_plan import update_grocery_list, WeeklyMealPlan
-from sqlalchemy.exc import SQLAlchemyError
+from app.crud.weekly_meal_plan import update_grocery_list, get_meal_plan_by_id, WeeklyMealPlan
 
 logger = setup_logger(__name__)
 
-def grocery_agent(state: OrchestratorState) -> OrchestratorState:
+def grocery_agent(
+    db: Session,
+    meal_plan_id: int,
+    shop_number: Optional[str] = None,
+    meal_plan_text: Optional[str] = None,
+    current_grocery_list: Optional[List[str]] = None,
+    approved: bool = False
+) -> List[str]:
     """
-    Generate a weekly grocery list from the given nutrition plan, save it to the DB,
-    and optionally send via WhatsApp if shop_number is available.
+    Generate a weekly grocery list if the meal plan is approved and grocery list is empty.
+    Updates DB and optionally sends WhatsApp message.
 
     Args:
-        state (OrchestratorState): Current orchestrator state containing 'nutrition_plan'.
-        db (Session): SQLAlchemy session for DB operations.
+        db (Session): SQLAlchemy session.
+        meal_plan_id (int): ID of the meal plan to process.
+        shop_number (Optional[str]): Optional WhatsApp number to send the list.
+        meal_plan_text (Optional[str]): Meal plan text for LLM generation.
+        current_grocery_list (Optional[List[str]]): Existing grocery list.
+        approved (bool): Whether the meal plan is approved.
 
     Returns:
-        OrchestratorState: Updated state with 'grocery_list'.
+        List[str]: Generated grocery list (empty if not generated).
     """
-    logger.info("Starting grocery agent...")
+    logger.info("Starting grocery agent for plan_id=%s", meal_plan_id)
 
-    nutrition_plan = state.get("nutrition_plan")
-    if not nutrition_plan:
-        logger.warning("No nutrition plan found in state. Returning empty grocery list.")
-        state["grocery_list"] = []
-        return state
+    # If not approved or grocery list exists, skip generation
+    if not approved:
+        logger.info("Meal plan not approved. Skipping grocery generation.")
+        return current_grocery_list or []
 
-    meal_plan_text = nutrition_plan.get("meal_plan_text", "")
-    meal_plan_id = nutrition_plan.get("id")  # Needed to update DB
-    db = state.get("db")
-    if not meal_plan_text or not meal_plan_id or not db:
-        logger.warning("db Session,meal plan text or ID is missing. Returning empty grocery list.")
-        state["grocery_list"] = []
-        return state
+    if current_grocery_list:
+        logger.info("Grocery list already exists. Skipping generation.")
+        return current_grocery_list
 
-    # -----------------------------
+    if not meal_plan_text:
+        # Fetch meal plan text from DB
+        meal_plan: Optional[WeeklyMealPlan] = get_meal_plan_by_id(db, meal_plan_id)
+        if not meal_plan:
+            logger.warning("Meal plan not found in DB for plan_id=%s", meal_plan_id)
+            return []
+        meal_plan_text = meal_plan.meal_plan_text
+        shop_number = shop_number or meal_plan.shop_number
+
     # Build LLM prompt
-    # -----------------------------
     prompt = f"""
 You are a grocery planning assistant.
-
 From the following 7-day meal plan, generate a WEEKLY grocery list.
-
 Rules:
-
 - Combine quantities for the whole week
 - Use simple household quantities (kg, g, pieces)
 - One grocery item per line
 - No explanations, only the list
-
 Meal Plan:
 {meal_plan_text}
 """
-    logger.info("Calling LLM to generate grocery list...")
+
+    # Generate grocery list
     try:
         response = llm.invoke(prompt)
-    except Exception as e:
-        logger.exception("LLM invocation failed in grocery agent")
-        state["grocery_list"] = []
-        return state
+        grocery_items = [line.strip("-• ").strip() for line in response.split("\n") if line.strip()]
+    except Exception:
+        logger.exception("LLM invocation failed")
+        return []
 
-    # -----------------------------
-    # Parse LLM output into list
-    # -----------------------------
-    grocery_items = [
-        line.strip("-• ").strip()
-        for line in response.split("\n")
-        if line.strip()
-    ]
-    state["grocery_list"] = grocery_items
-
-    # -----------------------------
-    # Update DB with grocery list
-    # -----------------------------
+    # Update DB
     try:
-        meal_plan: Optional[WeeklyMealPlan] = update_grocery_list(
+        update_grocery_list(
             db=db,
             meal_plan_id=meal_plan_id,
             grocery_list=grocery_items,
-            shop_number=nutrition_plan.get("shop_number")
+            shop_number=shop_number,
+            mark_approved=True,
         )
-        if not meal_plan:
-            logger.warning(f"Failed to update grocery list in DB for plan_id={meal_plan_id}")
-        else:
-            logger.info(f"Grocery list saved to DB for plan_id={meal_plan_id}")
+        logger.info("Grocery list saved to DB for plan_id=%s", meal_plan_id)
+    except Exception:
+        logger.exception("Failed to update grocery list in DB for plan_id=%s", meal_plan_id)
 
-            # -----------------------------
-            # Send WhatsApp message if shop_number exists
-            # -----------------------------
-            shop_number = meal_plan.shop_number
-            if shop_number and grocery_items:
-                logger.info(f"Sending grocery list via WhatsApp to {shop_number}")
-                try:
-                    send_whatsapp_message(shop_number, "Grocery list:\n" + "\n".join(grocery_items))
-                    logger.info(f"Grocery list WhatsApp sent successfully to {shop_number}")
-                except Exception as e:
-                    logger.exception(f"Failed to send grocery list WhatsApp to {shop_number}")
+    # Send WhatsApp if number exists
+    if shop_number and grocery_items:
+        try:
+            send_whatsapp_message(shop_number, "Grocery list:\n" + "\n".join(grocery_items))
+            logger.info("Grocery list sent via WhatsApp to %s", shop_number)
+        except Exception:
+            logger.exception("Failed to send WhatsApp to %s", shop_number)
 
-    except NutritionAgentError as e:
-        logger.error(f"Failed to update grocery list in DB: {str(e)}")
-
-    logger.info("Grocery agent completed successfully | items=%d", len(grocery_items))
-    return state
+    return grocery_items

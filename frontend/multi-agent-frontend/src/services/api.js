@@ -4,6 +4,7 @@ import { API_ENDPOINTS,
    MEAL_APPROVAL_API,
     EXERCISE_API,
     JOURNAL_API,
+    PROFILE_API
    } from "../api/endpoints";
    import toast from "react-hot-toast";
 
@@ -65,6 +66,7 @@ export const authenticateUser = async (mode, payload) => {
           date_of_birth: payload.dateOfBirth,
           gender: payload.gender,
           password: payload.password,
+          phone:payload.phone
         });
 
   const response = await fetch(endpoint, {
@@ -127,8 +129,8 @@ export const approveMealPlan = async (mealPlanId, shopNumber) => {
 
     // Show API message in alert
     // alert(data.message || "Operation completed");
-    toast.success(data.message || "Operation completed")
-    to
+    // toast.success(data.message || "Operation completed")
+    
 
     return data;
 
@@ -347,4 +349,30 @@ export const transcribeAudio = async (audioBlob) => {
     console.error("Error in transcribeAudio:", error);
     throw error;
   }
+};
+
+export const getUserProfile = async (userIdOverride) => {
+  const userId = userIdOverride ?? getUserIdFromToken();
+
+  if (!userId) {
+    throw new Error("Missing user id (please login again)");
+  }
+
+  const response = await fetch(PROFILE_API.GET_USER_PROFILE(userId), {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  // Handle unauthorized
+  if (response.status === 401) {
+    localStorage.removeItem("token");
+    window.location.reload();
+  }
+
+  // Handle other errors
+  if (!response.ok) {
+    throw new Error("Failed to fetch user profile");
+  }
+
+  return response.json();
 };

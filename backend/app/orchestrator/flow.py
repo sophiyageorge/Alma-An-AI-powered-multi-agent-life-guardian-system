@@ -125,9 +125,102 @@ from app.agents.compliance.agent import compliance_agent
 from app.core.logging_config import setup_logger
 
 logger = setup_logger(__name__)
+from langgraph.graph import StateGraph, END
+from app.orchestrator.state import OrchestratorState
 
 
+# ---------------------------------------------------------
+# Emergency Router
+# ---------------------------------------------------------
+def emergency_router(state: OrchestratorState) -> str:
+    """
+    Decide whether the workflow should stop due to emergency.
+
+    Returns:
+        "emergency" → terminate workflow
+        "normal_flow" → continue workflow
+    """
+    logger.info("Checking emergency condition")
+
+    if state.get("emergency_triggered"):
+        logger.warning("Emergency detected. Stopping workflow.")
+        return "emergency"
+
+    logger.info("No emergency detected. Continuing workflow.")
+    return "normal_flow"
+
+
+# ---------------------------------------------------------
+# Build Series Workflow
+# ---------------------------------------------------------
 def build_orchestrator():
+    """
+    Build and compile the LangGraph workflow with conditional emergency handling.
+    """
+    logger.info("Initializing LangGraph orchestrator (series flow)")
+
+    graph = StateGraph(OrchestratorState)
+
+    # ----------------------------
+    # Register Nodes
+    # ----------------------------
+    graph.add_node("health", health_agent)
+    graph.add_node("emergency", emergency_alert_agent)
+    graph.add_node("nutrition", nutrition_agent)
+    graph.add_node("exercise", exercise_agent)
+    graph.add_node("mental", mental_health_agent)
+    graph.add_node("approval_check", meal_plan_approval_check)
+    graph.add_node("compliance", compliance_agent)
+
+    # ----------------------------
+    # Entry Point
+    # ----------------------------
+    graph.set_entry_point("health")
+    logger.info("Entry point set to 'health' agent")
+
+    # ----------------------------
+    # Health → Emergency
+    # ----------------------------
+    graph.add_edge("health", "emergency")
+
+    # ----------------------------
+    # Conditional routing based on emergency
+    # ----------------------------
+    graph.add_conditional_edges(
+        "emergency",
+        emergency_router,
+        {
+            "emergency": END,       # Stop workflow if emergency
+            "normal_flow": "nutrition"  # Continue if no emergency
+        }
+    )
+    logger.info("Emergency routing configured")
+
+    # ----------------------------
+    # Series Execution: nutrition → exercise → mental
+    # ----------------------------
+    graph.add_edge("nutrition", "exercise")
+    graph.add_edge("exercise", "mental")
+
+    # ----------------------------
+    # Mental → Compliance
+    # ----------------------------
+    graph.add_edge("mental", "compliance")
+
+    # ----------------------------
+    # Compliance → END
+    # ----------------------------
+    graph.add_edge("compliance", END)
+    
+    logger.info("Workflow end nodes configured")
+
+    # ----------------------------
+    # Compile Graph
+    # ----------------------------
+    compiled_graph = graph.compile()
+    logger.info("LangGraph orchestrator compiled successfully")
+
+    return compiled_graph
 
     logger.info("Building orchestrator graph (series flow)")
 

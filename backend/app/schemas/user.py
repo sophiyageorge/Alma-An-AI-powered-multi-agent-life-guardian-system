@@ -9,6 +9,7 @@ class UserBase(BaseModel):
     email: EmailStr
     date_of_birth: Optional[date]
     gender: Optional[GenderEnum]
+    phone: Optional[str]
 
 class UserCreate(UserBase):
     password: str

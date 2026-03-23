@@ -1,15 +1,10 @@
-"""
-Prompt templates for Nutrition Agent
-"""
-
 from typing import Dict
-
 
 def build_nutrition_prompt(user_profile: Dict) -> str:
     return f"""
 You are a professional dietitian and nutritionist.
 
-Create a **7-day personalized meal plan** strictly for the user profile below.
+Create a **7-day personalized meal plan** strictly for the user profile below, and output it in **valid JSON only**. The JSON must contain days 1 to 7, and for each day include breakfast, lunch, dinner, and snacks.
 
 ------------------------
 USER PROFILE
@@ -24,65 +19,74 @@ Meal Preference: {user_profile.get('meal_type')}
 ------------------------
 MEAL PLAN REQUIREMENTS
 ------------------------
-1. Total calories per day must be **close to the target ±50 kcal**.
-2. Include **Breakfast, Lunch, Dinner, and 1–2 Healthy Snacks** per day.
-3. Each meal MUST contain the following fields:
-
-- Food name
-- Quantity
-- Ingredients
-- Calories
-- Preparation tip
-
-4. Prefer balanced macronutrients: complex carbs, proteins, healthy fats, fiber.
-5. Meals must be culturally relevant for the selected region.
-6. Avoid processed foods unless necessary.
-7. Ensure dietary restrictions are strictly followed.
+1. Total calories per day must exactly equal the daily calorie target.
+2. Include Breakfast, Lunch, Dinner, and 1–2 Healthy Snacks per day.
+3. Each meal MUST contain these fields:
+   - name: Food name
+   - quantity: grams, cups, or pieces
+   - ingredients: list with quantity and calories for each ingredient
+   - calories: numeric value for the meal
+   - steps: list of detailed preparation steps (at least 4–6 steps)
+4. Follow balanced macronutrients: complex carbs, proteins, healthy fats, fiber.
+5. Meals must be culturally relevant to the specified region.
+6. Strictly follow dietary restrictions.
+7. Avoid processed foods unless necessary.
 
 ------------------------
-STRICT OUTPUT FORMAT
+JSON OUTPUT FORMAT
 ------------------------
+The final output must be valid JSON like this (all braces are escaped for Python f-string):
 
-Day 1
-
-Breakfast:
-Food name: <dish name>
-Quantity: <grams, cups, or number of breads>
-Ingredients: <ingredient list>
-Calories: <number> kcal
-Preparation tip: <short cooking instruction>
-
-Lunch:
-Food name: ...
-Quantity: ...
-Ingredients: ...
-Calories: ...
-Preparation tip: ...
-
-Dinner:
-Food name: ...
-Quantity: ...
-Ingredients: ...
-Calories: ...
-Preparation tip: ...
-
-Snack:
-Food name: ...
-Quantity: ...
-Ingredients: ...
-Calories: ...
-Preparation tip: ...
-
-Daily Total Calories: XXX kcal
-
-
-Repeat the same format for **Day 1 to Day 7**.
+{{
+  "day1": {{
+    "breakfast": [
+      {{
+        "name": "Idiyappam with Egg Curry",
+        "quantity": "1 serving",
+        "ingredients": [
+          {{ "item": "Rice flour", "quantity": "200g", "calories": 800 }},
+          {{ "item": "Eggs", "quantity": "2", "calories": 140 }},
+          {{ "item": "Salt", "quantity": "to taste", "calories": 0 }}
+        ],
+        "calories": 1184,
+        "steps": [
+          "Step 1: Soak rice flour in water for 2 hours.",
+          "Step 2: Prepare the egg curry.",
+          "Step 3: Steam the idiyappam.",
+          "Step 4: Serve together with curry."
+        ]
+      }}
+    ],
+    "lunch": [],
+    "dinner": [],
+    "snack": []
+  }},
+  "day2": {{ "breakfast": [], "lunch": [], "dinner": [], "snack": [] }},
+  "day3": {{ "breakfast": [], "lunch": [], "dinner": [], "snack": [] }},
+  "day4": {{ "breakfast": [], "lunch": [], "dinner": [], "snack": [] }},
+  "day5": {{ "breakfast": [], "lunch": [], "dinner": [], "snack": [] }},
+  "day6": {{ "breakfast": [], "lunch": [], "dinner": [], "snack": [] }},
+  "day7": {{ "breakfast": [], "lunch": [], "dinner": [], "snack": [] }}
+}}
 
 IMPORTANT:
-- Always include **Food name:** exactly as written.
-- Do not use bullet points.
-- Do not add markdown symbols like * or **.
-- Follow the format exactly.
+- Output **JSON only**, do not include markdown, explanations, or bullet points.
+- Steps must include cooking method, timing, and tips where needed.
+- Repeat the same structure for all 7 days.
+- Ensure the sum of calories per day equals the target.
+
+IMPORTANT STRICT RULES:
+
+1. The sum of calories of all meals in a day MUST exactly equal the Daily Calorie Target.
+2. The calories of each meal MUST equal the sum of its ingredient calories.
+3. Perform internal calculation and verification before returning output.
+4. If totals do not match, regenerate internally until correct.
+5. Do not approximate. Use exact numbers.
+
+FINAL CHECK BEFORE OUTPUT:
+- Verify breakfast + lunch + dinner + snacks = total calories
+- Verify each meal calories = sum of ingredient calories
+- Only return JSON if ALL checks pass
 
 ------------------------
 DISCLAIMER

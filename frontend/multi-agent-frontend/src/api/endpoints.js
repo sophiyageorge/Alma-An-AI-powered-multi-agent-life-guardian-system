@@ -39,6 +39,7 @@ export const JOURNAL_API = {
 
 export const PROFILE_API = {
   UPDATE_MEAL_PLAN: (userId) => `${BASE_URL}/profile/${userId}`,
+  GET_USER_PROFILE:(userId)=>`${BASE_URL}/profile/${userId}`
 };
 
 

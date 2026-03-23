@@ -36,8 +36,8 @@ def health_agent(state: OrchestratorState) -> OrchestratorState:
 
         if not db or not user_id:
             logger.warning("HealthAgent missing db or user_id")
-            state["health_data"] = None
-            state["emergency_detected"] = False
+            # state["health_data"] = None
+            # state["emergency_detected"] = False
             return state
 
         # ---------------------------------------------------------
@@ -48,43 +48,43 @@ def health_agent(state: OrchestratorState) -> OrchestratorState:
 
         if not metrics:
             logger.info(f"No health metrics found for user {user_id}")
-            state["health_data"] = None
-            state["emergency_detected"] = False
+            # state["health_data"] = None
+            # state["emergency_detected"] = False
             return state
 
-        logger.info(f"Fetched {len(metrics)} health records")
+        logger.info(f"Fetched  health records")
 
-        processed_data = []
-        emergency_detected = False
+   
 
         # ---------------------------------------------------------
         # Run anomaly detection
         # ---------------------------------------------------------
 
-        for m in metrics:
+        health_point = {
+            "id": metrics.id,
+            "heart_rate": metrics.heart_rate,
+            "spo2": metrics.spo2,
+            "bp_systolic": metrics.bp_systolic,
+            "bp_diastolic": metrics.bp_diastolic,
+            "timestamp": metrics.timestamp
+        }
 
-            health_point = {
-                "id": m.id,
-                "heart_rate": m.heart_rate,
-                "spo2": m.spo2,
-                "bp_systolic": m.bp_systolic,
-                "bp_diastolic": m.bp_diastolic,
-                "timestamp": m.timestamp
-            }
+        result = detect_anomaly(health_point)
 
-            result = detect_anomaly(health_point)
-
-            if result["alert_level"] == "critical":
-                emergency_detected = True
-
-            processed_data.append(result)
+        emergency_detected = result["alert_level"] == "critical"
+        logger.info(f"DEBUG: anomaly detection result: {result["alert_level"] == "critical"}")
 
         # ---------------------------------------------------------
         # Update orchestrator state
         # ---------------------------------------------------------
 
-        state["health_data"] = processed_data
-        state["emergency_detected"] = emergency_detected
+        state["health_data"] = result   # ✅ dict (NOT list)
+
+        state["emergency_triggered"] = emergency_detected
+
+        logger.info(
+            f"HealthAgent completed | emergency_detected={emergency_detected}"
+        )
 
         logger.info(
             f"HealthAgent completed | emergency_detected={emergency_detected}"

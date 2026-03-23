@@ -5,10 +5,10 @@ from app.dependencies import get_current_user, get_db
 from app.crud.weekly_meal_plan import approve_meal_plan as crud_approve_meal_plan
 from app.crud.weekly_meal_plan import update_grocery_list
 from app.models.weekly_meal_plan import WeeklyMealPlan
-from app.orchestrator.flow import grocery_agent
-from app.orchestrator.state import OrchestratorState
+from app.agents.grocery.agent import grocery_agent
 from app.core.logging_config import setup_logger
 from app.core.exceptions import NutritionAgentError
+from app.services.grocery_service import process_grocery_generation
 
 logger = setup_logger(__name__)
 router = APIRouter()
@@ -42,7 +42,7 @@ def approve_meal_plan_endpoint(
         )
 
         # ✅ Approve meal plan via CRUD
-        meal_plan: WeeklyMealPlan = crud_approve_meal_plan(db, meal_plan_id, shop_number)
+        meal_plan = crud_approve_meal_plan(db, meal_plan_id, shop_number)
         if not meal_plan:
             logger.warning(
                 "Meal plan not found for approval | plan_id=%s | user_id=%s",
@@ -50,6 +50,9 @@ def approve_meal_plan_endpoint(
                 current_user.user_id
             )
             raise HTTPException(status_code=404, detail="Meal plan not found")
+        
+        # ✅ Initialize variable 
+        grocery_items = meal_plan.grocery_list or []
 
         # ✅ If grocery list already exists, skip generation
         if meal_plan.grocery_list:
@@ -60,31 +63,23 @@ def approve_meal_plan_endpoint(
             )
         else:
             # 1️⃣ Build minimal orchestrator state for grocery agent
-            state: OrchestratorState = {
-                "nutrition_plan": {
-                    "id": meal_plan.id,
-                    "meal_plan_text": meal_plan.meal_plan_text,
-                    "calories": meal_plan.calories,
-                    "diet": meal_plan.diet,
-                    "region": meal_plan.region,
-                    "goal": meal_plan.goal,
-                    "restrictions": meal_plan.restrictions
-                }
-            }
-
-            # 2️⃣ Invoke grocery agent
-            logger.info("Invoking grocery agent | meal_plan_id=%s | user_id=%s", meal_plan.id, current_user.user_id)
-            state = grocery_agent(state)
+            grocery_items = process_grocery_generation(
+                    db=db,
+                    meal_plan_id=meal_plan_id,
+                    shop_number=shop_number,
+                    meal_plan_text=meal_plan.meal_plan_text,
+                    current_grocery_list=meal_plan.grocery_list,
+                    approved=meal_plan.is_approved,
+                )
 
             # 3️⃣ Save grocery list to DB
-            update_meal_plan_grocery_list(db, meal_plan.id, state.get("grocery_list", []))
             logger.info("Grocery list saved | meal_plan_id=%s | user_id=%s", meal_plan.id, current_user.user_id)
 
         return {
             "meal_plan_id": meal_plan.id,
             "approved": meal_plan.is_approved,
             "shop_number": meal_plan.shop_number,
-            "grocery_list": meal_plan.grocery_list,
+            "grocery_list": grocery_items,
             "message": "Meal plan approved and grocery list generated."
         }
 

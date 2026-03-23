@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import datetime
 import json
+from typing import Optional, Dict, Any
 
 from app.database import get_db
 from app.schemas.exercise import ExerciseEntryResponse
@@ -15,92 +16,132 @@ router = APIRouter()
 logger = setup_logger(__name__)
 
 
-@router.get("/recommendation", response_model=ExerciseEntryResponse)
-def get_exercise_recommendation(current_user=Depends(get_current_user),
-                                db: Session = Depends(get_db)):
+def safe_json_load(data: Optional[str]) -> list:
+    """
+    Safely parse JSON string into Python list.
+
+    Args:
+        data (Optional[str]): JSON string.
+
+    Returns:
+        list: Parsed list or empty list if invalid.
+    """
+    if not data:
+        return []
     try:
-        logger.info("Received exercise recommendation request")
-        user_id = current_user.user_id
-        logger.info(f"Authenticated user_id: {user_id}")
+        parsed = json.loads(data)
 
-        # Fetch orchestrator state
+        # ✅ Ensure list of strings
+        if isinstance(parsed, list):
+            return [str(item) for item in parsed]
+
+        return []
+    except json.JSONDecodeError:
+        logger.warning("Invalid JSON format encountered.")
+        return []
+
+
+@router.get("/recommendation", response_model=ExerciseEntryResponse)
+def get_exercise_recommendation(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Get today's exercise recommendation for the authenticated user.
+
+    Workflow:
+    - Validate user session via orchestrator state
+    - Fetch latest health metrics
+    - Retrieve today's exercise entry (if exists)
+    - Build and return structured response
+
+    Args:
+        current_user: Authenticated user dependency
+        db (Session): Database session
+
+    Returns:
+        Dict[str, Any]: Exercise recommendation response
+
+    Raises:
+        HTTPException: If user state or health data is missing
+    """
+    user_id = current_user.user_id
+    logger.info("Exercise recommendation request received", extra={"user_id": user_id})
+
+    try:
+        # Validate orchestrator state
         orchestrator_state = orchestrator_store.get(user_id)
-        if not orchestrator_state:
-            logger.error(f"No orchestrator state found for user_id {user_id}")
-            raise HTTPException(status_code=404, detail="User state not found. Please login first.")
-
-        # Fetch latest health metrics for the authenticated user
+        
+        # Fetch latest health metrics
         latest_health = (
             db.query(HealthMetrics)
-            .filter(HealthMetrics.user_id == 1)  # fixed
+            .filter(HealthMetrics.user_id == user_id)  # ✅ FIXED
             .order_by(HealthMetrics.timestamp.desc())
             .first()
         )
-
+        
+        
         if not latest_health:
-            logger.warning(f"No health metrics found in DB for user_id={user_id}")
-            raise HTTPException(status_code=404, detail="No health metrics found for user today")
+            logger.warning("No health metrics found", extra={"user_id": user_id})
 
-        health_metrics = {
-            "heart_rate": latest_health.heart_rate,
-            "spo2": latest_health.spo2,
-            "bp_systolic": latest_health.bp_systolic,
-            "bp_diastolic": latest_health.bp_diastolic,
-            
-        }
-        logger.info(f"Latest health metrics: {health_metrics}")
 
-        # Check for today's exercise entry
+        # Fetch today's exercise entry
         today_entry = get_today_exercise_entry(db, user_id)
-
+ 
         if today_entry:
-            logger.info(f"Found existing exercise entry for user_id={user_id} today")
-            entry_for_response = today_entry
+            logger.info("Existing exercise entry found", extra={"user_id": user_id})
+
             recommendation = {
                 "intensity": today_entry.intensity,
-                "plan": json.loads(today_entry.plan) if today_entry.plan else [],
-                "warnings": json.loads(today_entry.warnings) if today_entry.warnings else [],
+                "plan": safe_json_load(today_entry.plan),
+                "warnings": safe_json_load(today_entry.warnings),
                 "recovery_advice": today_entry.recovery_advice,
             }
-            llm_response = today_entry.llm_response
+
+            entry_data = {
+                "id": today_entry.id,
+                "user_id": today_entry.user_id,
+                "health_metric_id":today_entry.id,
+                "llm_response": today_entry.llm_response,
+                "date_created": today_entry.created_at,
+            }
+
         else:
-            # No entry exists → return a default response or handle generation via LLM
-            logger.warning(f"No exercise entry found for today | user_id={user_id}")
-            # Provide empty/default response to avoid UnboundLocalError
-            entry_for_response = None
+            logger.warning("No exercise entry found for today", extra={"user_id": user_id})
+
             recommendation = {
                 "intensity": None,
                 "plan": [],
                 "warnings": [],
-                "recovery_advice": None
+                "recovery_advice": None,
             }
-            llm_response = ""
 
-        # Build the response safely
-        exercise_plan = {
-            "id": getattr(entry_for_response, "id", 0) if entry_for_response else 0,
-            "user_id": getattr(entry_for_response, "user_id", user_id) if entry_for_response else user_id,
-            "heart_rate": getattr(entry_for_response, "heart_rate", health_metrics.get("heart_rate")) if entry_for_response else health_metrics.get("heart_rate"),
-            "spo2": getattr(entry_for_response, "spo2", health_metrics.get("spo2")) if entry_for_response else health_metrics.get("spo2"),
-            "bp_systolic": getattr(entry_for_response, "bp_systolic", health_metrics.get("bp_systolic")) if entry_for_response else health_metrics.get("bp_systolic"),
-            "bp_diastolic": getattr(entry_for_response, "bp_diastolic", health_metrics.get("bp_diastolic")) if entry_for_response else health_metrics.get("bp_diastolic"),
-             "llm_response": llm_response,
-            "intensity": recommendation.get("intensity"),
-            "plan": recommendation.get("plan", []),
-            "warnings": recommendation.get("warnings", []),
-            "recovery_advice": recommendation.get("recovery_advice"),
-            "date_created": getattr(entry_for_response, "date_created", datetime.utcnow()) if entry_for_response else datetime.utcnow(),
+            entry_data = {
+                "id": 0,
+                "user_id": user_id,
+                "llm_response": "",
+                "date_created": datetime.utcnow(),
+            }
+
+        # Final response
+        response = {
+            **entry_data,
+            **recommendation,
         }
 
-        logger.info("Returning exercise recommendation successfully")
-        return exercise_plan
+        logger.info("Exercise recommendation returned successfully", extra={"user_id": user_id})
 
-    except HTTPException as http_error:
-        logger.error(f"HTTP error occurred: {http_error.detail}")
-        raise http_error
-    except Exception as e:
-        logger.exception("Unexpected error in exercise recommendation endpoint")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        return response
 
+    except HTTPException:
+        raise
 
-  
+    except Exception as exc:
+        logger.exception(
+            "Unexpected error in exercise recommendation",
+            extra={"user_id": user_id},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        )

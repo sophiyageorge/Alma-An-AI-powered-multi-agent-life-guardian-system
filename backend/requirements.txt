@@ -20,3 +20,4 @@ textblob
 twilio
 faster-whisper
 loguru
+tiktoken

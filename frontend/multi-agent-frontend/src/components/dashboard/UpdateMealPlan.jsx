@@ -48,7 +48,7 @@ function MealPlanActions({ userId, currentPlan, onClose }) {
     } catch (err) {
       console.error(err);
       // alert("Update failed ❌");
-      // toast.error("Update failed ❌")
+      toast.error("Update failed ❌")
     } finally {
       setLoading(false);
     }

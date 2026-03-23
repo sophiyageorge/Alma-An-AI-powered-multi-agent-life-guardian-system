@@ -14,6 +14,17 @@ from app.core.exceptions import ComplianceAgentError
 
 logger = setup_logger(__name__)
 
+import tiktoken
+
+def truncate_by_tokens(text, max_tokens=5000):
+    enc = tiktoken.get_encoding("cl100k_base")  # safer for non-OpenAI models
+    tokens = enc.encode(text)
+    
+    if len(tokens) > max_tokens:
+        tokens = tokens[:max_tokens]
+    
+    return enc.decode(tokens)
+
 
 def compliance_agent(state: OrchestratorState) -> OrchestratorState:
     """
@@ -77,6 +88,9 @@ def compliance_agent(state: OrchestratorState) -> OrchestratorState:
         )
 
         compliance_prompt = "\n".join(prompt_lines)
+
+        # ✅ truncate BEFORE sending to LLM
+        compliance_prompt = truncate_by_tokens(compliance_prompt, max_tokens=5000)
 
         # -------------------------------
         # 3️⃣ Invoke LLM

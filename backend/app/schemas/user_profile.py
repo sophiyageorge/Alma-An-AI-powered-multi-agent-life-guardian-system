@@ -20,6 +20,7 @@ class UserProfileUpdate(BaseModel):
     region: str | None = None
     restrictions: List[str] | None = None
     meal_type: str | None = None
+    
 
 
 class UserProfileResponse(BaseModel):

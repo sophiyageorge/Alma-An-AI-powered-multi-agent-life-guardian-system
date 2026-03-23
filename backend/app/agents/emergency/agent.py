@@ -1,6 +1,7 @@
 import logging
 from app.orchestrator.state import OrchestratorState
 from app.services.send_whatsapp_message import send_whatsapp_message
+from app.crud.user import get_phone_by_user_id
 
 
 # Configure logger
@@ -33,25 +34,28 @@ def emergency_alert_agent(state: OrchestratorState) -> OrchestratorState:
     try:
 
         health_data = state.get("health_data")
+        db = state.get("db")
 
         if not health_data:
             logger.info("No health data available in state.")
-            state["emergency_triggered"] = False
+            # state["emergency_triggered"] = False
             return state
 
         alert_level = health_data.get("alert_level")
 
         if alert_level == "critical":
-
+            state["emergency_triggered"] = True
             logger.warning("Critical alert detected. Triggering emergency SMS.")
 
             # Get emergency contact from user profile
             user_profile = state.get("user_profile", {})
-            phone_number = user_profile.get("phone_number")
+            user_id = user_profile.get("user_id")
+
+            phone_number = get_phone_by_user_id(db,user_id)
 
             if not phone_number:
                 logger.error("Emergency contact not found in user profile.")
-                state["emergency_triggered"] = False
+                state["emergency_triggered"] = True
                 return state
 
             # Send emergency SMS

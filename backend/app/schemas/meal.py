@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional,Dict,Any
 from datetime import datetime
 
 
@@ -8,7 +8,7 @@ class MealPlanResponse(BaseModel):
     meal_plan_id: int
     user_id: int
     week: str
-    meal_plan: str
+    meal_plan: Dict[str, Any]
     approved: bool
 
     class Config:

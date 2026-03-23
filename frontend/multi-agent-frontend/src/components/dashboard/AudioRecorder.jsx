@@ -61,42 +61,68 @@ const AudioRecorder = ({ userId, onTranscription }) => {
 
 
 
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
-      audioChunksRef.current = [];
-  
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        if (event.data.size > 0) audioChunksRef.current.push(event.data);
-      };
-  
-      mediaRecorderRef.current.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/mp4" });
-        const url = URL.createObjectURL(audioBlob);
-        setAudioURL(url);
-  
-        try {
-          const transcription = await transcribeAudio(audioBlob);
-          onTranscription && onTranscription(transcription);
-          window.location.href="/home"
-        } catch (err) {
-          console.error("Transcription failed:", err);
-        }
-      };
-  
-      mediaRecorderRef.current.start();
-      setRecording(true); 
-    } catch (err) {
-      console.error("Error accessing microphone:", err);
-    }
-  };
-  const stopRecording = () => {
-    if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.stop();
-      setRecording(false);
-    }
-  };
+  const MAX_DURATION = 60 * 1000; // 60 seconds
+const timerRef = useRef(null);
+
+const startRecording = async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    mediaRecorderRef.current = new MediaRecorder(stream);
+    audioChunksRef.current = [];
+
+    mediaRecorderRef.current.ondataavailable = (event) => {
+      if (event.data.size > 0) audioChunksRef.current.push(event.data);
+    };
+
+    mediaRecorderRef.current.onstop = async () => {
+      // ✅ Clear timer if stopped manually
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+
+      const audioBlob = new Blob(audioChunksRef.current, { type: "audio/mp4" });
+      const url = URL.createObjectURL(audioBlob);
+      setAudioURL(url);
+
+      try {
+        const transcription = await transcribeAudio(audioBlob);
+        onTranscription && onTranscription(transcription);
+        window.location.href = "/home";
+      } catch (err) {
+        console.error("Transcription failed:", err);
+      }
+    };
+
+    mediaRecorderRef.current.start();
+    setRecording(true);
+
+    // ✅ Auto-stop after max duration
+    timerRef.current = setTimeout(() => {
+      if (mediaRecorderRef.current?.state === "recording") {
+        mediaRecorderRef.current.stop();
+        setRecording(false);
+        alert("⏱️ Max recording time (60 seconds) reached");
+      }
+    }, MAX_DURATION);
+
+  } catch (err) {
+    console.error("Error accessing microphone:", err);
+  }
+};
+
+const stopRecording = () => {
+  if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+    mediaRecorderRef.current.stop();
+  }
+
+  // ✅ Clear timer on manual stop
+  if (timerRef.current) {
+    clearTimeout(timerRef.current);
+  }
+
+  setRecording(false);
+};
 
   const parsed = journal ? parseJournalResponse(journal.llm_response) : null;
 
