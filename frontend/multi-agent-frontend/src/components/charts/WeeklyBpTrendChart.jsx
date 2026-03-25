@@ -63,7 +63,7 @@ function BloodPressureChart() {
       
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-bold text-white">
-          Blood Pressure Trend {connected ? "🟢" : "🔴"}
+          Weekly Health Chart {connected ? "🟢" : "🔴"}
         </h3>
         <Heart className="w-5 h-5 text-rose-400 animate-pulse" />
       </div>
@@ -134,7 +134,7 @@ function BloodPressureChart() {
           </AreaChart>
         </ResponsiveContainer>
       )}
-
+   <div className="mt-4 text-center p-3 bg-white/5 rounded-lg">
       <div className="mt-4 flex gap-4 text-sm justify-center p-3 bg-white/5 rounded-lg">
         <div className="flex items-center gap-2">
           <span className="w-3 h-3 bg-rose-400 rounded-full"></span>
@@ -148,8 +148,9 @@ function BloodPressureChart() {
           <span className="w-3 h-3 bg-cyan-400 rounded-full"></span>
           <span className="text-gray-300">Heart Rate</span>
         </div>
+        </div>
       </div>
-    </div>
+  </div>
   );
 }
 

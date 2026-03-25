@@ -72,6 +72,7 @@ const STATUS_META = {
   critical: { label: "Critical", bg: "#fdecea", text: "#c0392b", ring: "#e05252" },
 };
 
+
 // ── sub-components ────────────────────────────────────────────────────────────
 function StatusPill({ status }) {
   const meta = STATUS_META[status];
@@ -278,7 +279,9 @@ export default function HealthDailyUpdateForm({ userId, onSuccess }) {
   // ── form ──────────────────────────────────────────────────────────────────
   return (
     <div style={styles.card}>
+
       {/* header */}
+     
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
         <div
           style={{

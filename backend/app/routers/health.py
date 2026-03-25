@@ -7,7 +7,7 @@ These endpoints are used by wearable integrations,
 manual user input, and AI health agents.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException,BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List
 from sqlalchemy import func
@@ -17,6 +17,7 @@ from app.orchestrator.state import OrchestratorState
 from app.crud.user_profile import get_profile
 
 from app.database import get_db
+from app.database import SessionLocal
 from app.dependencies import get_current_user
 from app.schemas.health import (
     HealthMetricsCreate,
@@ -35,6 +36,8 @@ from app.crud.health import (
 from app.models.user import User
 from app.models.health import HealthMetrics
 
+from app.orchestrator.graph import build_graph
+
 from app.core.logging_config import setup_logger
 
 logger = setup_logger(__name__)
@@ -44,6 +47,100 @@ router = APIRouter(
     tags=["Health Metrics"]
 )
 
+
+
+def run_orchestrator(user_id: int):
+    """
+    Run the orchestrator workflow for a given user.
+
+    Args:
+        user_id (int): ID of the authenticated user.
+        db (Session): Database session.
+
+    Raises:
+        HTTPException: If orchestrator execution fails.
+    """
+
+    db = SessionLocal()   # ✅ create new DB session
+
+    # ---------------------------------------------------------
+    # Fetch User Profile
+    # ---------------------------------------------------------
+
+    profile = get_profile(db,user_id)
+
+    logger.info(f"Profile fetched for user_id={user_id}")
+
+    # ---------------------------------------------------------
+    # Build User Profile State
+    # ---------------------------------------------------------
+
+    if profile:
+        user_profile = {
+                "user_id": user_id,
+                "calories": profile.calories,
+                "diet": profile.diet,
+                "goal": profile.goal,
+                "region": profile.region,
+                "restrictions": profile.restrictions or [],
+                "meal_type": profile.meal_type
+            }
+
+        logger.info(
+                f"Using stored profile for user_id={user_id}"
+            )
+
+            # ---------------------------------------------------------
+            # Initialize Orchestrator State
+            # ---------------------------------------------------------
+
+        state: OrchestratorState = {
+                # "user_id": db_user.user_id,
+                "user_profile": user_profile,
+                "db": db,
+                "health_data": None,
+                "journal_text": None,
+                "meal_plan_approved": False,
+                "exercise_plan_approved": False,
+                "anomaly_detected": False,
+                "compliance_passed": True
+            }
+
+        logger.info(
+                f"Orchestrator state initialized for user_id={user_id}"
+            )
+
+        logger.info(f"Initial orchestrator state for user_id={user_id}: {state}")
+
+        # ---------------------------------------------------------
+        # Invoke LangGraph Orchestrator
+        # ---------------------------------------------------------
+
+        try:
+
+            logger.info(
+                    f"Invoking orchestrator graph for user_id={user_id}"
+                )
+            
+            # Build LangGraph orchestrator
+            graph = build_graph()
+
+            final_state = graph.invoke(state)
+
+            logger.info(
+                    f"Orchestrator completed successfully for user_id={user_id}"
+                )
+
+                
+        
+        except Exception as e:
+
+            logger.exception("Orchestrator failed", extra={"user_id": user_id})
+
+            raise HTTPException(
+                    status_code=500,
+                    detail="Failed to initialize wellness workflow"
+                )
 
 # ---------------------------------------------------------
 # Create Health Metric
@@ -55,6 +152,7 @@ router = APIRouter(
     summary="Create health metrics entry"
 )
 def create_metric(
+    background_tasks: BackgroundTasks,
     data: HealthMetricsCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -106,7 +204,11 @@ def create_metric(
         # pass
 
    
+        # ---------------------------------------------------------
+    # Add orchestrator workflow as background task
+    # ---------------------------------------------------------
 
+    background_tasks.add_task(run_orchestrator,user_id)
    
     # -----------------------------
     # 4️⃣ Return saved metric

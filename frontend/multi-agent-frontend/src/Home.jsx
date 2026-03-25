@@ -339,7 +339,7 @@ function App() {
 
         {showHealthForm && (
           <div className="mb-6 flex justify-center">
-            <HealthDailyUpdateForm
+            <HealthDailyUpdateForm onClose={() => setShowModal(false)}
               onSuccess={() => {
                 setShowHealthForm(false);
               }}

@@ -201,7 +201,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
 def login(user: UserLogin,background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """
     Authenticate user and trigger orchestrator workflow.
-    """
+    """ 
 
     logger.info(f"Login attempt for email: {user.email}")
 

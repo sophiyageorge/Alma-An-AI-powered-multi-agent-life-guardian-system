@@ -68,7 +68,7 @@ function HeartRateChart() {
       
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-bold text-white">
-          Monthly Health Trend {connected ? "🟢" : "🔴"}
+          Monthly Health Chart {connected ? "🟢" : "🔴"}
         </h3>
         <Zap className="w-5 h-5 text-cyan-400 animate-pulse" />
       </div>
@@ -150,9 +150,20 @@ function HeartRateChart() {
         </div>
       </div> */}
       <div className="mt-4 text-center p-3 bg-white/5 rounded-lg">
-  <p className="text-sm text-gray-400">
-    💡 Tip: Stay hydrated and take short walks throughout the day to keep your heart healthy!
-  </p>
+   <div className="mt-4 flex gap-4 text-sm justify-center p-3 bg-white/5 rounded-lg">
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 bg-rose-400 rounded-full"></span>
+          <span className="text-gray-300">Systolic</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 bg-pink-400 rounded-full"></span>
+          <span className="text-gray-300">Diastolic</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 bg-cyan-400 rounded-full"></span>
+          <span className="text-gray-300">Heart Rate</span>
+        </div>
+      </div>
 </div>
     </div>
   );

@@ -69,8 +69,7 @@ def get_exercise_recommendation(
     logger.info("Exercise recommendation request received", extra={"user_id": user_id})
 
     try:
-        # Validate orchestrator state
-        orchestrator_state = orchestrator_store.get(user_id)
+        
         
         # Fetch latest health metrics
         latest_health = (
