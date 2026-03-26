@@ -50,6 +50,7 @@ import ExercisePlan from "./components/dashboard/ExercisePlan";
 import HealthDailyUpdateForm from "./components/dashboard/HealthDailyUpdateForm";
 import LogoutButton from "./components/auth/LogoutButton";
 import AlmaHeader from "./components/AlmaHeader";
+import { getHealth } from "./services/api";
 // import MealPlanActions from "./UpdateMealPlan";
 
 
@@ -67,6 +68,10 @@ function App() {
   const [transcript, setTranscript] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showHealthForm, setShowHealthForm] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [showButton,setShowButton] = useState(true)
+  
+  
   
 
   // Health and wellness themed background images from local assets
@@ -79,62 +84,29 @@ function App() {
     image6, // Healthy Lifestyle
   ];
 
-  // Authentication
 
-  // const [isAuthOpen, setIsAuthOpen] = useState(false);
-  // const [authMode, setAuthMode] = useState("signin");
-  // const [isAuthenticated, setIsAuthenticated] = useState(
-  //   !!localStorage.getItem("token")
-  // );
 
-  //  const logout = () => {
-  //   localStorage.removeItem("token");
-  //   setIsAuthenticated(false);
-  // };
+ useEffect(() => {
+    const checkTodayHealth = async () => {
+      try {
+        const data = await getHealth();
+        // If no data for today, show button
+        if (!data || data.length === 0) {
+          setShowButton(true);
+        } else {
+          setShowButton(false);
+        }
+        console.log(showButton)
+      } catch (error) {
+        console.error("Failed to fetch health metrics:", error);
+        setShowButton(true); // optional: show button if API fails
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  //  return (
-  //   <div className="text-white min-h-screen bg-gray-900 p-6">
-  //     <div className="flex justify-end gap-4">
-  //       {isAuthenticated ? (
-  //         <button
-  //           onClick={logout}
-  //           className="bg-red-600 px-4 py-2 rounded"
-  //         >
-  //           Logout
-  //         </button>
-  //       ) : (
-  //         <>
-  //           <button
-  //             onClick={() => {
-  //               setAuthMode("signin");
-  //               setIsAuthOpen(true);
-  //             }}
-  //             className="bg-blue-600 px-4 py-2 rounded"
-  //           >
-  //             Sign In
-  //           </button>
-
-  //           <button
-  //             onClick={() => {
-  //               setAuthMode("signup");
-  //               setIsAuthOpen(true);
-  //             }}
-  //             className="bg-green-600 px-4 py-2 rounded"
-  //           >
-  //             Sign Up
-  //           </button>
-  //         </>
-  //       )}
-  //     </div>
-
-  //     <AuthModal
-  //       isOpen={isAuthOpen}
-  //       onClose={() => setIsAuthOpen(false)}
-  //       mode={authMode}
-  //       setIsAuthenticated={setIsAuthenticated}
-  //     />
-  //   </div>
-  // );
+    checkTodayHealth();
+  }, []);
 
 
   useEffect(() => {
@@ -327,25 +299,31 @@ function App() {
         </header> */}
             <AlmaHeader />
         {/* Stats Cards - Slide in from sides */}
+       
+        {/* Button shows only if no data for today */}
+      {showButton && (
         <div className="flex items-center justify-end mb-4">
           <button
             type="button"
-            onClick={() => setShowHealthForm((v) => !v)}
+            onClick={() => setShowHealthForm((prev) => !prev)} // open modal
             className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white hover:bg-white/15 transition"
           >
-            {showHealthForm ? "Close daily health form" : "Add today’s health data"}
+            Add today’s health data
           </button>
         </div>
+      )}
 
-        {showHealthForm && (
-          <div className="mb-6 flex justify-center">
-            <HealthDailyUpdateForm onClose={() => setShowModal(false)}
-              onSuccess={() => {
-                setShowHealthForm(false);
-              }}
-            />
-          </div>
-        )}
+      {/* Modal opens only when button clicked */}
+      {showHealthForm && (
+        <div className="mb-6 flex justify-center">
+          <HealthDailyUpdateForm
+            onClose={() => setShowHealthForm(false)}
+            onSuccess={() => setShowHealthForm(false)}
+          />
+        </div>
+      )}
+
+
        
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6">
