@@ -62,7 +62,21 @@ def nutrition_agent(state: OrchestratorState) -> OrchestratorState:
             # Generate new weekly plan using LLM
             # -------------------------------
             logger.info("No plan found for current week, generating new plan for user_id=%s", user_id)
-            new_plan_text = generate_nutrition_plan(user_profile)
+            # new_plan_text = generate_nutrition_plan(user_profile)
+            try:
+                new_plan_text = generate_nutrition_plan(user_profile)
+            except Exception as e:
+                logger.error("LLM failed: %s", str(e))
+
+                # fallback plan (VERY IMPORTANT)
+                new_plan_text = {
+                    "day1": {
+                        "breakfast": [],
+                        "lunch": [],
+                        "dinner": [],
+                        "snack": []
+                    }
+                }
 
             # Save new plan via CRUD
             plan = meal_crud.create_weekly_meal_plan(

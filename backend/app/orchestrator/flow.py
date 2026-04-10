@@ -170,7 +170,7 @@ def build_orchestrator():
     graph.add_node("exercise", exercise_agent)
     graph.add_node("mental", mental_health_agent)
     graph.add_node("approval_check", meal_plan_approval_check)
-    graph.add_node("compliance", compliance_agent)
+    # graph.add_node("compliance", compliance_agent)
 
     # ----------------------------
     # Entry Point
@@ -205,12 +205,12 @@ def build_orchestrator():
     # ----------------------------
     # Mental → Compliance
     # ----------------------------
-    graph.add_edge("mental", "compliance")
+    graph.add_edge("mental", END)
 
     # ----------------------------
     # Compliance → END
     # ----------------------------
-    graph.add_edge("compliance", END)
+    # graph.add_edge("compliance", END)
     
     logger.info("Workflow end nodes configured")
 
@@ -236,7 +236,7 @@ def build_orchestrator():
     graph.add_node("mental", mental_health_agent)
     graph.add_node("approval_check", meal_plan_approval_check)
     graph.add_node("grocery", grocery_agent)
-    graph.add_node("compliance", compliance_agent)
+    # graph.add_node("compliance", compliance_agent)
 
     logger.info("Agent nodes registered")
 
@@ -267,17 +267,17 @@ def build_orchestrator():
     # ----------------------------
     # Grocery → Compliance
     # ----------------------------
-    graph.add_edge("grocery", "compliance")
+    graph.add_edge("grocery", END)
 
     # ----------------------------
     # Mental → Compliance
     # ----------------------------
-    graph.add_edge("mental", "compliance")
+    # graph.add_edge("mental", END)
 
     # ----------------------------
     # Compliance → END
     # ----------------------------
-    graph.add_edge("compliance", END)
+    # graph.add_edge("compliance", END)
 
     logger.info("Compliance verification step added")
 

@@ -99,7 +99,7 @@ def build_meal_response(user_id: int, plan: Optional[Dict[str, Any]]) -> MealPla
             meal_plan_id=0,
             user_id=user_id,
             week=get_current_week(),
-            meal_plan="Not available",
+            meal_plan={},
             approved=False,
         )
 

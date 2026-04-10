@@ -75,7 +75,7 @@ def build_graph():
     graph.add_node("nutrition", nutrition_agent)
     graph.add_node("exercise", exercise_agent)
     graph.add_node("mental", mental_health_agent)
-    graph.add_node("compliance", compliance_agent)
+#     graph.add_node("compliance", compliance_agent)
 
     # ----------------------------
     # Entry Point
@@ -107,14 +107,14 @@ def build_graph():
     # ----------------------------
     # Nutrition → Approval Check → Grocery
     # ----------------------------
-    graph.add_edge("mental", "compliance")
+    graph.add_edge("mental", END)
    
    
 
     # ----------------------------
     # Endpoints
     # ----------------------------
-    graph.add_edge("compliance", END)
+#     graph.add_edge("compliance", END)
     
     logger.info("Workflow end nodes configured")
 
