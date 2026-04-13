@@ -10,11 +10,18 @@ function extractExerciseData(response) {
     // parse JSON string directly
     const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
 
+    // Normalize plan to an array of objects
+    const normalizedPlan = Array.isArray(parsed.plan)
+      ? parsed.plan.map((p) =>
+          typeof p === "string" ? { activity: p } : p
+        )
+      : [];
+
     return {
-      plan: parsed.plan || [],
+      plan: normalizedPlan,
       warnings: parsed.warnings || [],
       recovery_advice: parsed.recovery_advice || "",
-      intensity: parsed.intensity || ""
+      intensity: (parsed.intensity || "").toString()
     };
   } catch (error) {
     console.error("Error parsing exercise plan:", error);
@@ -69,7 +76,7 @@ const ExercisePlan = () => {
     fetchData();
   }, []);
 
-  const intensity = intensityConfig[exercise.intensity?.toLowerCase()] || intensityConfig.low;
+  const intensity = intensityConfig[ (exercise.intensity || "low").toLowerCase() ] || intensityConfig.low;
 
   if (loading) {
     return (
@@ -105,28 +112,35 @@ const ExercisePlan = () => {
       </div>
 
       {/* Exercise Plan Cards */}
-      {/* Exercise Plan Cards */}
-{exercise.plan.length > 0 ? (
-   
+      {exercise.plan.length > 0 ? (
         <div className="mb-6 p-6 bg-amber-500/10 border border-amber-500/30 rounded-2xl shadow-sm">
-  {/* Header */}
-  <h3 className="text-sm font-semibold text-amber-400 uppercase mb-3 tracking-wide">
-    Recommendations
-  </h3>
+          <h3 className="text-sm font-semibold text-amber-400 uppercase mb-3 tracking-wide">
+            Recommendations
+          </h3>
 
-  {/* Exercise Plan */}
-  <div className="text-gray-100 leading-relaxed space-y-2">
-    {exercise.plan.map((item, idx) => (
-      <p key={idx} className="text-sm">
-        {item}
-      </p>
-    ))}
-  </div>
-</div>
- 
-) : (
-  <div className="text-center py-10 text-gray-500">No exercise plan available.</div>
-)} 
+          <div className="space-y-3">
+            {exercise.plan.map((item, idx) => {
+              // item can be an object or a string
+              const activity = typeof item === "object" ? item.activity ?? "" : String(item);
+              const duration = typeof item === "object" ? item.duration ?? "" : "";
+              const notes = typeof item === "object" ? item.notes ?? "" : "";
+
+              // Simple render; adjust to your design as needed
+              return (
+                <div key={idx} className="p-3 bg-white/5 rounded-md border border-white/10">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-semibold text-sm text-gray-200">{activity}</span>
+                    {duration && <span className="text-xs text-gray-300">• {duration}</span>}
+                  </div>
+                  {notes && <p className="text-xs text-gray-200 mt-1">{notes}</p>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-10 text-gray-500">No exercise plan available.</div>
+      )}
 
       {/* Warnings */}
       {exercise.warnings.length > 0 && (
@@ -161,7 +175,3 @@ const ExercisePlan = () => {
 };
 
 export default ExercisePlan;
-
-
-
-

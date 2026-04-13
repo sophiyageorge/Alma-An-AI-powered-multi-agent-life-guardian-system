@@ -1,14 +1,12 @@
 """
 LLM Client Wrapper
 ------------------
-
-Provides a wrapper around the Groq LLM API for generating
-AI completions. Designed to be reusable across agents
-(e.g., Nutrition, Exercise, Mental Health).
+Optimized for single-day generation to stay within Groq TPM limits.
 """
 
 import os
 import logging
+import json
 from dotenv import load_dotenv
 from groq import Groq
 
@@ -35,67 +33,66 @@ if not GROQ_API_KEY:
     logger.error("GROQ_API_KEY not found in environment")
     raise RuntimeError("GROQ_API_KEY not found in environment")
 
-# -----------------------------
 # Initialize Groq Client
-# -----------------------------
 client = Groq(api_key=GROQ_API_KEY)
-logger.info("Groq client initialized successfully")
-
 
 # -----------------------------
 # LLM Wrapper Class
 # -----------------------------
 class GroqLLM:
     """
-    Wrapper for Groq LLM client with convenient defaults.
-
-    Attributes:
-        model (str): Model name to use.
-        temperature (float): Sampling temperature.
-        max_tokens (int): Maximum tokens to generate.
+    Wrapper for Groq LLM client.
+    
+    Optimized for JSON generation on the Groq Free Tier.
     """
 
-    def __init__(self, model: str = "llama-3.1-8b-instant", temperature: float = 0.3, max_tokens: int = 8000):
+    def __init__(self, model: str = "llama-3.1-8b-instant", temperature: float = 0.1, max_tokens: int = 2000):
         self.model = model
-        self.temperature = temperature
+        self.temperature = temperature  # Lower temperature is better for strict JSON
         self.max_tokens = max_tokens
-        logger.info(f"GroqLLM initialized | model={self.model}, temperature={self.temperature}, max_tokens={self.max_tokens}")
+        self.tpm_limit = 6000 
+        logger.info(f"GroqLLM initialized | model={self.model}")
+
+    def _estimate_tokens(self, text: str) -> int:
+        return len(text) // 4
 
     def invoke(self, prompt: str) -> str:
         """
-        Send a prompt to the LLM and return the generated response.
-
-        Args:
-            prompt (str): The user input or instruction for the LLM.
-
-        Returns:
-            str: Generated text from the model.
-
-        Raises:
-            RuntimeError: If the API call fails.
+        Sends prompt to LLM and returns the raw string content.
+        Includes a safeguard for the 6000 TPM limit.
         """
+        system_prompt = "You are a professional assistant that outputs only valid JSON."
+        
+        estimated_input = self._estimate_tokens(system_prompt + prompt)
+        
+        # Prevent 413 error by capping the request
+        if (estimated_input + self.max_tokens) > self.tpm_limit:
+            actual_max = max(500, self.tpm_limit - estimated_input - 100)
+            logger.warning(f"Input large ({estimated_input}). Reducing max_tokens to {actual_max}")
+        else:
+            actual_max = self.max_tokens
+
         try:
-            logger.info(f"Invoking LLM | model={self.model} | prompt_length={len(prompt)}")
+            logger.info(f"Invoking LLM for Day Plan...")
             response = client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "You are a helpful AI assistant."},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt},
                 ],
                 temperature=self.temperature,
-                max_tokens=self.max_tokens
+                max_tokens=actual_max,
+                response_format={"type": "json_object"} # Forces Groq to return JSON
             )
-            result = response.choices[0].message.content
-            logger.info(f"LLM response received | length={len(result)}")
-            return result
+            
+            content = response.choices[0].message.content
+            return content
 
         except Exception as e:
-            logger.exception("Failed to invoke LLM")
-            raise RuntimeError(f"LLM invocation failed: {str(e)}") from e
-
+            logger.error(f"LLM API Call failed: {str(e)}")
+            raise RuntimeError(f"LLM failure: {e}")
 
 # -----------------------------
 # Singleton instance
 # -----------------------------
 llm = GroqLLM()
-

@@ -111,7 +111,7 @@ def update_profile(
         db.query(WeeklyMealPlan)
         .filter(WeeklyMealPlan.user_id == user_id)
         .order_by(WeeklyMealPlan.created_at.desc())
-        .first()
+        .first() 
     )
 
     if not week_plan:

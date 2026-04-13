@@ -1,50 +1,42 @@
 import React, { useState, useRef, useEffect } from "react";
-import { getAuthHeadersform, getJournal } from "../../services/api";
-import { Sparkles, Mic, Square, Heart, Lightbulb, Calendar } from "lucide-react";
-import { transcribeAudio } from "../../services/api";
+import { getJournal, transcribeAudio } from "../../services/api";
+import { Sparkles, Mic, Square, Heart, Calendar } from "lucide-react";
 
-function parseJournalResponse(text) {
-  if (!text) return { intro: "", tips: [], closing: "" };
-  const lines = text.split("\n").filter(Boolean);
-  const tips = [];
-  const introLines = [];
-  const closingLines = [];
-  let inTips = false;
+/* ------------------ SAFE JSON PARSER ------------------ */
+function parseLLMResponse(data) {
+  if (!data) return null;
 
-  lines.forEach((line) => {
-    const tipMatch = line.match(/^\d+\.\s+(.*)/);
-    if (tipMatch) {
-      inTips = true;
-      tips.push(tipMatch[1]);
-    } else if (inTips) {
-      closingLines.push(line);
-    } else {
-      introLines.push(line);
-    }
-  });
-
-  return {
-    intro: introLines.join(" "),
-    tips,
-    closing: closingLines.join(" "),
-  };
+  try {
+    return typeof data === "string" ? JSON.parse(data) : data;
+  } catch (e) {
+    console.error("LLM parse error:", e);
+    return null;
+  }
 }
 
+/* ------------------ DATE FORMAT ------------------ */
 function formatDate(dateStr) {
   if (!dateStr) return "";
   return new Date(dateStr).toLocaleDateString("en-US", {
-    weekday: "long", month: "long", day: "numeric",
+    weekday: "long",
+    month: "long",
+    day: "numeric",
   });
 }
 
-const AudioRecorder = ({ userId, onTranscription }) => {
+const AudioRecorder = ({ onTranscription }) => {
   const [recording, setRecording] = useState(false);
   const [audioURL, setAudioURL] = useState(null);
   const [journal, setJournal] = useState(null);
   const [loading, setLoading] = useState(true);
+
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const timerRef = useRef(null);
 
+  const MAX_DURATION = 60 * 1000;
+
+  /* ------------------ FETCH JOURNAL ------------------ */
   useEffect(() => {
     const fetchJournal = async () => {
       try {
@@ -56,302 +48,182 @@ const AudioRecorder = ({ userId, onTranscription }) => {
         setLoading(false);
       }
     };
+
     fetchJournal();
   }, []);
 
+  /* ------------------ RECORDING START ------------------ */
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      audioChunksRef.current = [];
 
-  const MAX_DURATION = 60 * 1000; // 60 seconds
-const timerRef = useRef(null);
+      mediaRecorderRef.current.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
 
-const startRecording = async () => {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-    mediaRecorderRef.current = new MediaRecorder(stream);
-    audioChunksRef.current = [];
-
-    mediaRecorderRef.current.ondataavailable = (event) => {
-      if (event.data.size > 0) audioChunksRef.current.push(event.data);
-    };
-
-    mediaRecorderRef.current.onstop = async () => {
-      // ✅ Clear timer if stopped manually
-      if (timerRef.current) {
+      mediaRecorderRef.current.onstop = async () => {
         clearTimeout(timerRef.current);
-      }
 
-      const audioBlob = new Blob(audioChunksRef.current, { type: "audio/mp4" });
-      const url = URL.createObjectURL(audioBlob);
-      setAudioURL(url);
+        const blob = new Blob(audioChunksRef.current, { type: "audio/mp4" });
+        const url = URL.createObjectURL(blob);
 
-      try {
-        const transcription = await transcribeAudio(audioBlob);
-        onTranscription && onTranscription(transcription);
-        window.location.href = "/home";
-      } catch (err) {
-        console.error("Transcription failed:", err);
-      }
-    };
-
-    mediaRecorderRef.current.start();
-    setRecording(true);
-
-    // ✅ Auto-stop after max duration
-    timerRef.current = setTimeout(() => {
-      if (mediaRecorderRef.current?.state === "recording") {
-        mediaRecorderRef.current.stop();
+        setAudioURL(url);
         setRecording(false);
-        alert("⏱️ Max recording time (60 seconds) reached");
-      }
-    }, MAX_DURATION);
 
-  } catch (err) {
-    console.error("Error accessing microphone:", err);
-  }
-};
+        try {
+          const transcription = await transcribeAudio(blob);
+          onTranscription?.(transcription);
+        } catch (err) {
+          console.error("Transcription failed:", err);
+        }
+      };
 
-const stopRecording = () => {
-  if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-    mediaRecorderRef.current.stop();
-  }
+      mediaRecorderRef.current.start();
+      setRecording(true);
 
-  // ✅ Clear timer on manual stop
-  if (timerRef.current) {
+      timerRef.current = setTimeout(() => {
+        if (mediaRecorderRef.current?.state === "recording") {
+          mediaRecorderRef.current.stop();
+          alert("⏱️ Max recording time reached");
+        }
+      }, MAX_DURATION);
+
+    } catch (err) {
+      console.error("Mic error:", err);
+    }
+  };
+
+  /* ------------------ STOP RECORDING ------------------ */
+  const stopRecording = () => {
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
     clearTimeout(timerRef.current);
-  }
+    setRecording(false);
+  };
 
-  setRecording(false);
-};
-
-  const parsed = journal ? parseJournalResponse(journal.llm_response) : null;
+  /* ------------------ PARSE JOURNAL ------------------ */
+  const parsed = journal?.llm_response
+    ? parseLLMResponse(journal.llm_response)
+    : null;
 
   return (
-    <div className="relative overflow-hidden bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-xl border border-white/10 rounded-2xl p-6 hover:border-white/20 hover:shadow-2xl transition-all duration-500">
+    <div className="relative overflow-hidden bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-xl border border-white/10 rounded-2xl p-6">
 
-      {/* Shimmer overlay */}
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent translate-x-[-200%] animate-shimmer pointer-events-none" />
-
-      {/* Header */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        <div className="p-2 bg-gradient-to-br from-violet-400 to-fuchsia-500 rounded-xl shadow-lg shadow-violet-500/30">
+      {/* ---------------- HEADER ---------------- */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="p-2 bg-gradient-to-br from-violet-400 to-fuchsia-500 rounded-xl">
           <Heart className="w-5 h-5 text-white" />
         </div>
+
         <div>
           <h2 className="text-xl font-bold text-white">Daily Journal</h2>
+
           {journal?.date_created && (
-            <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+            <p className="text-xs text-gray-400 flex items-center gap-1">
               <Calendar className="w-3 h-3" />
               {formatDate(journal.date_created)}
             </p>
           )}
         </div>
-        <div className="ml-auto flex items-center gap-1 px-3 py-1 bg-violet-500/20 border border-violet-500/30 rounded-full">
-          <Sparkles className="w-3 h-3 text-violet-400 animate-pulse" />
-          <span className="text-xs text-violet-300">AI Curated</span>
+
+        <div className="ml-auto flex items-center gap-1 px-3 py-1 bg-violet-500/20 rounded-full">
+          <Sparkles className="w-3 h-3 text-violet-400" />
+          <span className="text-xs text-violet-300">AI</span>
         </div>
       </div>
 
-      {/* Journal AI Response */}
+      {/* ---------------- JOURNAL UI ---------------- */}
       {loading ? (
-        <div className="space-y-3 mb-6">
-          {[90, 75, 100, 80].map((w, i) => (
-            <div
-              key={i}
-              className="h-3 rounded-full bg-white/5 animate-pulse"
-              style={{ width: `${w}%`, animationDelay: `${i * 150}ms` }}
-            />
-          ))}
-        </div>
-      ) : parsed && (
-        <div className="mb-6 space-y-4">
+        <p className="text-gray-400 text-sm">Loading...</p>
+      ) : parsed?.analysis && parsed?.response && (
+        <div className="space-y-4">
 
-          {/* Intro */}
-          {parsed.intro && (
-            <div className="relative bg-gradient-to-br from-white/5 to-white/10 border border-white/10 rounded-xl p-4 hover:border-white/20 transition-all duration-300">
-              <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-fuchsia-500/5 rounded-xl" />
-              <p className="relative text-sm text-gray-300 leading-relaxed italic">
-                "{parsed.intro}"
-              </p>
-            </div>
-          )}
+          {/* Mood */}
+          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+            <p className="text-violet-300 text-sm font-semibold">
+              Mood Analysis
+            </p>
 
-          {/* Tips */}
-          {parsed.tips.length > 0 && (
+            <p className="text-gray-200 text-sm mt-2">
+              <b>Mood:</b> {parsed.analysis.detected_mood}
+            </p>
+
+            <p className="text-gray-300 text-sm mt-1">
+              <b>Themes:</b> {parsed.analysis.key_themes?.join(", ")}
+            </p>
+          </div>
+
+          {/* Acknowledgment */}
+          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+            <p className="text-gray-200 text-sm">
+              {parsed.response.acknowledgment}
+            </p>
+          </div>
+
+          {/* Suggestions */}
+          {parsed.response.suggestions?.length > 0 && (
             <div className="space-y-2">
-              <div className="flex items-center gap-2 px-1">
-                <Lightbulb className="w-3.5 h-3.5 text-violet-400" />
-                <span className="text-xs font-semibold text-violet-300 uppercase tracking-wider">Suggestions</span>
-              </div>
-              {parsed.tips.map((tip, i) => (
+              <p className="text-xs text-violet-300 uppercase">
+                Suggestions
+              </p>
+
+              {parsed.response.suggestions.map((item, i) => (
                 <div
                   key={i}
-                  className="group flex items-start gap-3 bg-gradient-to-br from-white/5 to-white/10 border border-white/10 rounded-xl p-3 hover:border-white/20 hover:scale-[1.01] transition-all duration-300"
+                  className="bg-white/5 border border-white/10 rounded-xl p-3"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 to-fuchsia-500/10 opacity-0 group-hover:opacity-100 rounded-xl transition-opacity duration-300 pointer-events-none" />
-                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-violet-500/20 border border-violet-500/30 text-violet-400 text-xs font-semibold flex items-center justify-center mt-0.5">
-                    {i + 1}
-                  </span>
-                  <p className="text-xs text-gray-300 leading-relaxed">{tip}</p>
+                  <p className="text-white text-sm font-semibold">
+                    {item.title}
+                  </p>
+                  <p className="text-gray-300 text-xs">
+                    {item.description}
+                  </p>
                 </div>
               ))}
             </div>
           )}
 
           {/* Closing */}
-          {parsed.closing && (
-            <div className="pt-3 border-t border-white/10">
-              <p className="text-xs text-gray-400 leading-relaxed">{parsed.closing}</p>
-            </div>
-          )}
+          <p className="text-gray-400 text-xs border-t border-white/10 pt-3">
+            {parsed.response.closing_encouragement}
+          </p>
+
         </div>
       )}
 
-      {/* Divider */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="flex-1 h-px bg-white/10" />
-        <span className="text-xs text-gray-500 uppercase tracking-widest">New Entry</span>
-        <div className="flex-1 h-px bg-white/10" />
-      </div>
+      {/* ---------------- MIC ---------------- */}
+      <div className="mt-6 flex flex-col items-center gap-4">
 
-      {/* Mic Section */}
-      <div className="flex flex-col items-center gap-4">
-        <div className="relative">
-          {/* Ripple rings when recording */}
-          {recording && (
-            <>
-              <span className="absolute inset-0 rounded-full bg-red-500/20 animate-ping" />
-              <span className="absolute -inset-3 rounded-full bg-red-500/10 animate-ping" style={{ animationDelay: "0.3s" }} />
-            </>
+        <button
+          onClick={recording ? stopRecording : startRecording}
+          className={`w-20 h-20 rounded-full flex items-center justify-center transition-all
+            ${recording
+              ? "bg-red-500"
+              : "bg-gradient-to-br from-violet-500 to-fuchsia-600"
+            }`}
+        >
+          {recording ? (
+            <Square className="text-white" />
+          ) : (
+            <Mic className="text-white" />
           )}
-          <button
-            onClick={recording ? stopRecording : startRecording}
-            className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg
-              ${recording
-                ? "bg-gradient-to-br from-red-500 to-rose-600 shadow-red-500/30 scale-110 hover:scale-105"
-                : "bg-gradient-to-br from-violet-500 to-fuchsia-600 shadow-violet-500/30 hover:scale-110 hover:shadow-violet-500/50"
-              }`}
-          >
-            {recording
-              ? <Square className="w-7 h-7 text-white fill-white" />
-              : <Mic className="w-7 h-7 text-white" />
-            }
-          </button>
-        </div>
+        </button>
 
-        <span className={`text-sm font-medium transition-colors duration-300 ${recording ? "text-red-400 animate-pulse" : "text-gray-400"}`}>
-          {recording ? "● Recording... tap to stop" : "Tap to speak your thoughts"}
-        </span>
+        <p className="text-sm text-gray-400">
+          {recording ? "Recording..." : "Tap to speak"}
+        </p>
 
         {audioURL && (
-          <div className="w-full bg-gradient-to-br from-white/5 to-white/10 border border-white/10 rounded-xl p-3 hover:border-white/20 transition-all duration-300">
-            <audio controls src={audioURL} className="w-full h-8" />
-          </div>
+          <audio controls src={audioURL} className="w-full mt-2" />
         )}
+
       </div>
     </div>
   );
 };
 
 export default AudioRecorder;
-// import React, { useState, useRef, useEffect } from "react";
-// import { getAuthHeaders } from "../../services/api";
-// import { getJournal } from "../../services/api";
-
-
-// const AudioRecorder = ({ userId, onTranscription }) => {
-//   const [recording, setRecording] = useState(false);
-//   const [audioURL, setAudioURL] = useState(null);
-//   const mediaRecorderRef = useRef(null);
-//   const audioChunksRef = useRef([]);
-
-//   useEffect(() => {
-//     // Fetch journal entry on mount (optional, can be used to display existing entry)
-//     const fetchJournal = async () => {
-//       try { 
-//         const data = await getJournal();
-//         console.log("Today's journal entry:", data);
-//       }
-//       catch (err) {
-//         console.error("Error fetching journal entry:", err);
-//       }
-//     };
-
-//     fetchJournal();
-//   }, []);
-
-//   // Start recording
-//   const startRecording = async () => {
-//     try {
-//       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-//       mediaRecorderRef.current = new MediaRecorder(stream);
-//       audioChunksRef.current = [];
-
-//       mediaRecorderRef.current.ondataavailable = (event) => {
-//         if (event.data.size > 0) audioChunksRef.current.push(event.data);
-//       };
-
-//       mediaRecorderRef.current.onstop = async () => {
-//         const audioBlob = new Blob(audioChunksRef.current, { type: "audio/mp4" });
-//         const url = URL.createObjectURL(audioBlob);
-//         setAudioURL(url);
-
-//         // Send audio + userId to FastAPI endpoint
-//         const formData = new FormData();
-//         formData.append("file", audioBlob, "recording.mp4");
-//         // formData.append("user_id", userId); // <-- include user ID
-
-//         try {
-//           const response = await fetch("http://localhost:8000/stt/transcribe", {
-//             method: "POST",
-//             body: formData,
-//             headers: getAuthHeaders(), // <-- include auth headers
-//           });
-//           const data = await response.json();
-//           onTranscription && onTranscription(data.text); // Send transcript back to parent
-//         } catch (err) {
-//           console.error("Error sending audio to STT API:", err);
-//         }
-//       };
-
-//       mediaRecorderRef.current.start();
-//       setRecording(true);
-//     } catch (err) {
-//       console.error("Microphone access denied:", err);
-//     }
-//   };
-
-//   // Stop recording
-//   const stopRecording = () => {
-//     if (mediaRecorderRef.current) {
-//       mediaRecorderRef.current.stop();
-//       setRecording(false);
-//     }
-//   };
-
-//   return (
-//     <div style={{ padding: "20px", border: "1px solid #ccc", borderRadius: "8px" }}>
-//       <button
-//         onClick={recording ? stopRecording : startRecording}
-//         style={{
-//           padding: "10px 20px",
-//           backgroundColor: recording ? "#e74c3c" : "#2ecc71",
-//           color: "#fff",
-//           border: "none",
-//           borderRadius: "4px",
-//           cursor: "pointer",
-//         }}
-//       >
-//         {recording ? "Stop Recording" : "Start Recording"}
-//       </button>
-
-//       {audioURL && (
-//         <div style={{ marginTop: "10px" }}>
-//           <audio controls src={audioURL} />
-//         </div>
-//       )}
-//     </div>
-//   );
-// };
-
-// export default AudioRecorder;

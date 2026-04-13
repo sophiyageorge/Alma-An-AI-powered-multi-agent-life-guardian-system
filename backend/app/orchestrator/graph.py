@@ -107,14 +107,14 @@ def build_graph():
     # ----------------------------
     # Nutrition → Approval Check → Grocery
     # ----------------------------
-    graph.add_edge("mental", "compliance")
+    graph.add_edge("mental", END)
    
    
 
     # ----------------------------
     # Endpoints
     # ----------------------------
-    graph.add_edge("compliance", END)
+#     graph.add_edge("compliance", END)
     
     logger.info("Workflow end nodes configured")
 

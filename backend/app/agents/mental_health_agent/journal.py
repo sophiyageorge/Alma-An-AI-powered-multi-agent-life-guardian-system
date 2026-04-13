@@ -79,8 +79,13 @@ def process_audio_journal(
         # -------------------------------
         prompt = build_mental_health_prompt(journal_text)
         logger.info("Invoking LLM for mental health advice for user_id=%s", user_id)
-        llm_response = llm.invoke(prompt)
+        llm_response_json = llm.invoke(prompt)
 
+        # IMPORTANT: Ensure it's a string for the DB. 
+        # If llm.invoke returns a dict (because of response_format="json_object"),
+        # we convert it to a string here.
+        if isinstance(llm_response_json, dict):
+            llm_response_json = json.dumps(llm_response_json)
         # -------------------------------
         # Check if today's journal already exists
         # -------------------------------
@@ -93,7 +98,7 @@ def process_audio_journal(
                 db=db,
                 journal_id=today_entry.id,
                 journal_text=journal_text,
-                llm_response=llm_response,
+                llm_response= llm_response_json,
                 language=language
               
             )
@@ -105,7 +110,7 @@ def process_audio_journal(
                 db=db,
                 user_id=user_id,
                 journal_text=journal_text,
-                llm_response=llm_response,
+                llm_response=llm_response_json,
                 language=language
                 # duration=duration
             )
