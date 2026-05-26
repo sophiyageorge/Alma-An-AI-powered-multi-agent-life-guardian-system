@@ -115,7 +115,7 @@ docker run -d -p 8000:8000 alma-app
 ### 🧠 Exercise
 ![Exercise](screenshots/exercise.png)
 
-> **Note**: Place your screenshots in the `/screenshots` folder with the exact filenames shown above.
+
 
 ## 🔐 Security
 - JWT Authentication
