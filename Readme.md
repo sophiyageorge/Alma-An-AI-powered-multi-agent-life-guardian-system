@@ -11,6 +11,10 @@
 
 Alma is an AI-powered multi-agent wellness platform that delivers personalized guidance across nutrition, fitness, mental health, and lifestyle management. It combines LLMs, speech-to-text, and agent orchestration to create an intelligent, scalable health assistant.
 
+Demo : https://youtu.be/MpBkm_RFJvo 
+Live : https://alma-an-ai-powered-multi-agent-life.vercel.app/
+
+
 ## 🎯 Features
 
 - 🍽️ **Personalized Meal Planning**
